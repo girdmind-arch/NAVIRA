@@ -27,10 +27,12 @@ from backend.app.services.police_station_boundaries import match_route_police_st
 from backend.app.services.synthetic_demo import load_synthetic_route_demo
 from backend.app.routers.ml import router as ml_router
 from backend.app.routers.safety import router as safety_router
+from backend.app.routers.journey_sos import router as journey_sos_router
 logging.basicConfig(level=logging.INFO)
 app=FastAPI(title="NAVIRA",version="0.1.0",description="Evidence-first Delhi NCT route comparison prototype. No route is guaranteed safe.")
 app.include_router(ml_router)
 app.include_router(safety_router)
+app.include_router(journey_sos_router)
 @app.on_event("startup")
 def startup():
  init_db()

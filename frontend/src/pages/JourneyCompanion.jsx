@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeading, Notice, Icon } from "../components/ui";
 import MapView from "../components/MapView";
+import JourneySafetyMonitor from "../components/JourneySafetyMonitor";
 import { journeysApi } from "../services/api";
 
 function duration(value) {
@@ -57,6 +58,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
   const [position, setPosition] = useState(null);
   const [track, setTrack] = useState([]);
   const [clock, setClock] = useState(0);
+  const [safetyFix, setSafetyFix] = useState(null);
   const trackRef = useRef([]);
   const arrivalFixes = useRef(0);
   const lastArrivalFixAt = useRef(0);
@@ -103,6 +105,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
     const watch = navigator.geolocation.watchPosition(({ coords }) => {
       setLocationIssue("");
       recordPosition(coords, journey.id, trackRef, setPosition, setTrack, setError);
+      setSafetyFix({ latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, timestamp: Date.now() });
       const destination = journey.route?.geometry?.coordinates?.at(-1);
       const now = Date.now();
       if (!destination || coords.accuracy > MAX_ARRIVAL_ACCURACY_METERS) {
@@ -191,6 +194,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
         </section>
       </div>
     </>}
+    {authenticated && journey?.status === "in_progress" && <JourneySafetyMonitor key={journey.id} journey={journey} fix={safetyFix}/>}
     {error && <Notice kind="warning">{error}</Notice>}
     <div className="journey-shortcuts"><button className="shortcut-card" onClick={() => onNavigate("safety")}><span className="quick-icon tone-pink"><Icon name="shield" size={19}/></span><span><strong>Emergency SOS & sharing</strong><small>Manage a private location share.</small></span><Icon name="arrow" size={17}/></button><button className="shortcut-card" onClick={() => onNavigate("routes")}><span className="quick-icon tone-blue"><Icon name="route" size={19}/></span><span><strong>Route Planner</strong><small>Review or replace your saved route.</small></span><Icon name="arrow" size={17}/></button></div>
   </>;

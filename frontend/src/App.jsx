@@ -9,6 +9,7 @@ import JourneyCompanion from "./pages/JourneyCompanion";
 import ProfileSettings from "./pages/ProfileSettings";
 import NearbyFacilities from "./pages/NearbyFacilities";
 import PublicLocationShare from "./pages/PublicLocationShare";
+import PublicLiveLocation from "./pages/PublicLiveLocation";
 import Onboarding from "./pages/Onboarding";
 import "./App.css";
 
@@ -140,6 +141,8 @@ export default function App() {
     </div>}
   </div>;
   if (shareToken) return <PublicLocationShare token={shareToken}/>;
+  const liveToken = window.location.hash.match(/^#\/live\/([a-f0-9]{64})$/)?.[1];
+  if (liveToken) return <PublicLiveLocation token={liveToken}/>;
   if (authChecking) return <div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a>{themePicker}</header><main className="landing-loading" role="status">Restoring your NAVIRA session…</main></div>;
   if (page === "demo") return syntheticDemoEnabled && SyntheticRouteDemo
     ? <Suspense fallback={<main className="synthetic-demo-loading" role="status">Loading local synthetic demo…</main>}><SyntheticRouteDemo onBack={() => navigate("home")}/></Suspense>
