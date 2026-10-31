@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: navira
+    runtime: docker
+    plan: free
+    branch: main
+    autoDeployTrigger: commit
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NAVIRA_OSRM_BASE_URL
+        value: https://router.project-osrm.org
+      - key: TOMTOM_API_KEY
+        sync: false
+      - key: GEOAPIFY_API_KEY
+        sync: false
+      - key: OPENROUTESERVICE_API_KEY
+        sync: false
