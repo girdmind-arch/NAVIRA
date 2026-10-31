@@ -143,9 +143,10 @@ def test_geoapify_motorcycle_request_uses_documented_profile_and_parses_geojson(
  monkeypatch.setattr("urllib.request.urlopen",fake_urlopen)
  routes=GeoapifyMotorcycleRouter("server-secret").routes("77.2,28.6","77.21,28.61")
  request=seen["request"]
- assert isinstance(request,Request) and request.full_url.startswith(GeoapifyMotorcycleRouter.endpoint+"?")
+ url=request.full_url if isinstance(request,Request) else request
+ assert url.startswith(GeoapifyMotorcycleRouter.endpoint+"?")
  from urllib.parse import parse_qs,urlparse
- params=parse_qs(urlparse(request.full_url).query)
+ params=parse_qs(urlparse(url).query)
  assert params["mode"]==["motorcycle"] and params["apiKey"]==["server-secret"]
  assert params["waypoints"]==["28.6,77.2|28.61,77.21"]
  assert routes[0]["distance_m"]==1234 and routes[0]["duration_s"]==321
@@ -318,7 +319,7 @@ def test_missing_geocoded_news_is_not_reported_as_zero(monkeypatch,tmp_path):
 def test_route_endpoint_includes_historical_source_and_missing_route_evidence(monkeypatch,tmp_path):
  setup_db(monkeypatch,tmp_path)
  monkeypatch.setattr(main,"geocode_location",lambda query:{"query":query,"display_name":query,"latitude":28.6,"longitude":77.2,"provider":"test"})
- monkeypatch.setattr(main,"compare",lambda origin,destination:{"alternatives":[],"recommendation":None,"provider_status":"unavailable","limitations":[]})
+ monkeypatch.setattr(main,"compare",lambda origin,destination,**_:{"alternatives":[],"recommendation":None,"provider_status":"unavailable","limitations":[]})
  result=route_endpoint(RouteIn(origin="Origin",destination="Destination"))
  historical=result["evidence_context"]["historical_official_statistics"]
  assert historical["years"]==[2020,2021,2022,2023,2024]
@@ -333,7 +334,7 @@ def test_route_endpoint_attaches_independent_evidence_and_withholds_safety_perce
   {"id":"near-news","distance_m":1200,"duration_s":300,"geometry":{"type":"LineString","coordinates":[[77.2,28.6],[77.21,28.6]]}},
   {"id":"no-match","distance_m":1500,"duration_s":400,"geometry":{"type":"LineString","coordinates":[[77.3,28.7],[77.31,28.7]]}},
  ]
- monkeypatch.setattr(main,"compare",lambda origin,destination:{"alternatives":routes,"recommendation":{"route_id":"near-news"},"provider":"OSRM","provider_status":"provider_configured","limitations":[]})
+ monkeypatch.setattr(main,"compare",lambda origin,destination,**_:{"alternatives":routes,"recommendation":{"route_id":"near-news"},"provider":"OSRM","provider_status":"provider_configured","limitations":[]})
  with core.connect() as db:
   source=db.execute("insert into sources(source_type,name,reference,permission_basis,retrieved_at,geographic_precision) values('news','Verified paper','https://news.example','licensed','2026-10-01','street')").lastrowid
   db.execute("insert into news_incidents(source_id,article_reference,publication_date,incident_date,category,location_precision,review_status,fingerprint,latitude,longitude) values(?,?,?,?,?,?,?,?,?,?)",(source,"https://news.example/story","2026-10-02","2026-10-01","assault","street","verified","unique-story",28.6,77.205))

@@ -101,15 +101,23 @@ class TomTomTraffic:
             futures = [pool.submit(read_point, position) for position in indices]
             points = []
             errors = 0
+            first_error = ""
             for future in futures:
                 try:
                     points.append(future.result())
-                except (TrafficUnavailable, KeyError, TypeError, ValueError, AttributeError, OSError):
+                except (TrafficUnavailable, KeyError, TypeError, ValueError, AttributeError, OSError) as error:
                     errors += 1
+                    if not first_error and isinstance(error, TrafficUnavailable):
+                        first_error = str(error)
         points.sort(key=lambda point: point["route_index"])
 
         if not points:
-            return {"status": "unavailable", "provider": "TomTom", "reason": "No live traffic readings were available for this route."}
+            reason = "No live traffic readings were available for this route."
+            if "HTTP 403" in first_error or "HTTP 401" in first_error:
+                reason = f"TomTom rejected the traffic request ({first_error.split('HTTP ')[1].rstrip('.')}): check TOMTOM_API_KEY and its quota."
+            elif first_error:
+                reason = f"No live traffic readings: {first_error}"
+            return {"status": "unavailable", "provider": "TomTom", "reason": reason}
 
         ratios = [point["speed_ratio"] for point in points if point["speed_ratio"] is not None]
         average_ratio = sum(ratios) / len(ratios) if ratios else 0.0

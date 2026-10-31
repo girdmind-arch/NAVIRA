@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import NearbyFacilities from "./pages/NearbyFacilities.jsx";
 import { contactsApi, facilitiesApi, journeysApi, newsApi, routesApi } from "./services/api";
 
+vi.mock("./services/mapplsLoader", () => ({ loadMappls: () => new Promise(() => {}) }));
 vi.mock("./services/api", () => ({
   getToken: () => null,
   setToken: vi.fn(),

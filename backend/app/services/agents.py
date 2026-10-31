@@ -370,7 +370,7 @@ def compare(origin:str,destination:str,router=None)->dict[str,Any]:
   maximum=configured_route_alternatives()
   alternatives=distinct_route_alternatives(chosen.routes(origin,destination),maximum)
  except Exception as exc:
-  configured_missing=isinstance(chosen,(GeoapifyMotorcycleRouter,OpenRouteServiceWalkingRouter)) and not chosen.api_key
+  configured_missing=hasattr(chosen,"api_key") and not chosen.api_key
   return {"alternatives":[],"provider_status":"unconfigured" if configured_missing else "unavailable","provider":getattr(chosen,"provider","OSRM"),"error":str(exc),"compared_at":datetime.now(timezone.utc).isoformat(),"limitations":["No route evidence available; verify provider configuration and retry."]}
  alternatives.sort(key=lambda r:(r.get("duration_s",1e99),r.get("distance_m",1e99)))
  route_evidence={
@@ -393,7 +393,7 @@ def compare(origin:str,destination:str,router=None)->dict[str,Any]:
   elif index==shortest_index: rank_reason="Shortest by provider-estimated road distance; not a safety score."
   else: rank_reason="Alternative real road route; compare provider-estimated travel time and distance. No safety ranking is justified."
   route.update({"rank_reason":rank_reason,"safety_evidence":route_evidence,"locality_evidence":{"status":"unavailable"},"weather":weather,"traffic":{"status":"unavailable"},"community_reports":{"status":"unavailable"}})
- configured=isinstance(chosen,(OSRMRouter,GeoapifyMotorcycleRouter,OpenRouteServiceWalkingRouter))
+ configured=isinstance(chosen,(OSRMRouter,GeoapifyMotorcycleRouter,OpenRouteServiceWalkingRouter)) or chosen.__class__.__name__=="MapplsRouter"
  is_demo=isinstance(chosen,MockRouter)
  recommendation={
   "route_id":alternatives[0].get("id"),

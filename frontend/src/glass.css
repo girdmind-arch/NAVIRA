@@ -413,3 +413,16 @@ html[data-mode] .page-heading { position: relative; }
 }
 html[data-mode] :is(h1, h2, h3, h4) { font-family: var(--font-sans) !important; letter-spacing: -0.02em; }
 html[data-mode] :is(h2, h3) { font-weight: 750; }
+
+/* ---------- MapmyIndia (Mappls) map ---------- */
+html[data-mode] .mappls-frame { position: relative; }
+.mappls-map { width: 100%; min-height: 260px; }
+.map-status { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; gap: 6px; padding: 24px; text-align: center; color: var(--text-secondary); background: var(--surface-sunken); font-size: 14px; }
+.map-status--error { color: var(--danger-text, #a3222d); background: color-mix(in oklab, var(--surface-solid) 92%, transparent); }
+.map-status--error strong { color: var(--text-primary); font-size: 16px; }
+.navira-map-pin--current span { background: var(--accent, #6c4bd3); }
+.navira-map-pin--police span { background: #3466c2; }
+.navira-map-pin--hospital span { background: #d6455d; }
+.navira-traffic-dot { display: block; width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3); }
+.navira-popup { color: #1f1b24; font: 500 13px/1.45 var(--font-sans, sans-serif); }
+.navira-popup strong { font-weight: 600; }

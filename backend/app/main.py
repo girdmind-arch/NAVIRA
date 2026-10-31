@@ -22,6 +22,7 @@ from backend.app.services.weather import get_route_weather
 from backend.app.services.infrastructure import InfrastructureUnavailable,get_route_infrastructure
 from backend.app.services.map_infrastructure import MapInfrastructureUnavailable,get_viewport_infrastructure
 from backend.app.services.news_discovery import discover_locality_news
+from backend.app.services import mappls as mappls_service
 from backend.app.services.press_release_archive import discover_press_release_candidates
 from backend.app.services.police_station_boundaries import match_route_police_stations
 from backend.app.services.synthetic_demo import load_synthetic_route_demo
@@ -611,13 +612,24 @@ def trends_endpoint(years:list[int]|None=Query(None),category:str|None=None):
  with connect() as db:return trends(db,years,category)
 @app.get("/api/v1/geocoding/search")
 def geocoding_search(q:str=Query(min_length=2,max_length=200),limit:int=Query(5,ge=1,le=10)):
+ if mappls_service.provider_mode()=="mappls":
+  try:
+   items=mappls_service.MapplsClient().search(q,limit)
+  except (mappls_service.MapplsNotConfigured,mappls_service.MapplsUnavailable) as exc:
+   raise HTTPException(503,detail=str(exc)) from exc
+  return {"items":items,"provider":"MapmyIndia (Mappls)"}
  try:
   items=search_locations(q,limit)
  except LocationNotFound:
   return {"items":[]}
  except GeocodingUnavailable as exc:
   raise HTTPException(503,detail="Location suggestions are temporarily unavailable. Try again shortly.") from exc
- return {"items":items,"provider":"OpenStreetMap Nominatim"}
+ seen=set(); unique=[]
+ for item in items:
+  key=str(item.get("display_name","")).casefold()
+  if key in seen: continue
+  seen.add(key); unique.append(item)
+ return {"items":unique,"provider":"OpenStreetMap Nominatim"}
 @app.get("/api/v1/facilities/nearby")
 def facilities_nearby(
  latitude:float=Query(ge=-90,le=90),
@@ -632,6 +644,14 @@ def facilities_nearby(
   raise HTTPException(503,detail=str(exc)) from exc
  except ValueError as exc:
   raise HTTPException(422,detail=str(exc)) from exc
+def _geocode_text(query:str):
+ """Free-text place lookup used when the user typed a place without picking a suggestion."""
+ if mappls_service.provider_mode()=="mappls":
+  try: items=mappls_service.MapplsClient().search(query,1)
+  except (mappls_service.MapplsNotConfigured,mappls_service.MapplsUnavailable) as exc: raise GeocodingUnavailable(str(exc)) from exc
+  if not items: raise LocationNotFound(query)
+  return items[0]
+ return geocode_location(query)
 @app.post("/api/v1/routes/compare")
 def routes(body:RouteIn):
  resolved={}
@@ -647,19 +667,22 @@ def routes(body:RouteIn):
     raise HTTPException(422,detail=f"Select a valid {label} from the location suggestions.") from exc
   else:
    try:
-    resolved[field]=geocode_location(query)
+    resolved[field]=_geocode_text(query)
    except LocationNotFound as exc:
     raise HTTPException(422,detail=f"We couldn't find the {label}. Try a more specific locality, landmark, street, or full address.") from exc
    except GeocodingUnavailable as exc:
     raise HTTPException(503,detail="Location lookup is temporarily unavailable. Please try again shortly.") from exc
  origin=resolved["origin"]
  destination=resolved["destination"]
- motorcycle_fallback=body.mode=="motorcycle" and not os.getenv("GEOAPIFY_API_KEY","").strip()
+ use_mappls=mappls_service.provider_mode()=="mappls"
+ motorcycle_fallback=not use_mappls and body.mode=="motorcycle" and not os.getenv("GEOAPIFY_API_KEY","").strip()
  route_result=compare(
   f"{origin['longitude']},{origin['latitude']}",
   f"{destination['longitude']},{destination['latitude']}",
-  router=OSRMRouter() if motorcycle_fallback else GeoapifyMotorcycleRouter() if body.mode=="motorcycle" else None,
+  router=mappls_service.MapplsRouter(body.mode) if use_mappls else OSRMRouter() if motorcycle_fallback else GeoapifyMotorcycleRouter() if body.mode=="motorcycle" else None,
  )
+ if use_mappls and not mappls_service.rest_key():
+  route_result["error"]=mappls_service.not_configured_message("Routing")
  if motorcycle_fallback:
   route_result["provider"]="OSRM driving profile · motorcycle fallback"
   route_result["provider_status"]="provider_fallback" if route_result.get("alternatives") else route_result.get("provider_status","unavailable")
@@ -722,21 +745,34 @@ def walking_route(body:RouteIn):
    except (KeyError,TypeError,ValueError) as exc:
     raise HTTPException(422,detail=f"Select a valid {label} from the location suggestions.") from exc
   else:
-   try: resolved[field]=geocode_location(query)
+   try: resolved[field]=_geocode_text(query)
    except LocationNotFound as exc: raise HTTPException(422,detail=f"We couldn't find the {label}. Try a more specific locality, landmark, street, or full address.") from exc
    except GeocodingUnavailable as exc: raise HTTPException(503,detail="Location lookup is temporarily unavailable. Please try again shortly.") from exc
  locations={key:{name:value[name] for name in ("query","display_name","latitude","longitude","provider")} for key,value in resolved.items()}
+ use_mappls=mappls_service.provider_mode()=="mappls"
  result=compare(
   f"{resolved['origin']['longitude']},{resolved['origin']['latitude']}",
   f"{resolved['destination']['longitude']},{resolved['destination']['latitude']}",
-  router=OpenRouteServiceWalkingRouter(),
+  router=mappls_service.MapplsRouter("walking") if use_mappls else OpenRouteServiceWalkingRouter(),
  )
+ if use_mappls:
+  if not mappls_service.rest_key(): result["error"]=mappls_service.not_configured_message("Routing")
+  result.update({"mode":"walking","provider":"MapmyIndia (Mappls) · walking routing","resolved_locations":locations})
+  result["limitations"]=["Walking directions come from MapmyIndia (Mappls). Footpaths, crossings, lighting and current access may differ on the ground; verify local conditions.",*result.get("limitations",[])]
+  return result
  result.update({"mode":"walking","provider":"openrouteservice · foot-walking","resolved_locations":locations})
  result["limitations"]=["Walking directions use the openrouteservice foot-walking profile. OSM tagging, sidewalks, crossings, accessibility, and current path access may be incomplete; verify local conditions.",*result.get("limitations",[])]
  return result
 @app.post("/api/v1/routes/traffic")
 def route_traffic(body:RouteTrafficIn):
+ if mappls_service.provider_mode()=="mappls" and mappls_service.rest_key():
+  return mappls_service.traffic_eta(body.coordinates,body.duration_s,body.distance_m)
  return get_route_traffic(body.coordinates,body.duration_s,body.distance_m)
+@app.get("/api/v1/config/maps")
+def map_config():
+ if mappls_service.provider_mode()=="legacy":
+  return {"provider":"legacy","configured":True,"sdk_url":None,"message":None}
+ return mappls_service.map_config()
 @app.post("/api/v1/routes/weather")
 def route_weather(body:RouteWeatherIn):
  return get_route_weather(body.coordinates)

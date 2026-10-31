@@ -31,7 +31,7 @@ def _fetch(endpoint: str, body: bytes) -> Any:
         "Accept": "application/json",
     })
     try:
-        with urlopen(request, timeout=18) as response:
+        with urlopen(request, timeout=float(os.getenv("NAVIRA_OVERPASS_TIMEOUT_S", "8"))) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         raise MapInfrastructureUnavailable(f"OpenStreetMap Overpass returned HTTP {error.code}.") from error
@@ -113,7 +113,7 @@ class ViewportInfrastructure:
                     return deepcopy(entry[1])
 
         query = (
-            f"[out:json][timeout:18];(way[\"highway\"]({south},{west},{north},{east});"
+            f"[out:json][timeout:10];(way[\"highway\"]({south},{west},{north},{east});"
             f"node[\"highway\"=\"street_lamp\"]({south},{west},{north},{east}););out geom tags;"
         )
         body = urlencode({"data": query}).encode()

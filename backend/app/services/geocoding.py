@@ -94,6 +94,7 @@ class NominatimGeocoder:
             "limit": limit,
             "addressdetails": 1,
             "accept-language": "en",
+            "countrycodes": os.getenv("NAVIRA_GEOCODER_COUNTRIES", "in"),
             "q": query,
         })
         url = f"{self.base_url}/search?{params}"

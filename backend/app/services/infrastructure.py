@@ -33,7 +33,7 @@ def _fetch(url: str, data: bytes) -> Any:
         "Accept": "application/json",
     })
     try:
-        with urlopen(request, timeout=18) as response:
+        with urlopen(request, timeout=float(os.getenv("NAVIRA_OVERPASS_TIMEOUT_S", "8"))) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         raise InfrastructureUnavailable(f"OpenStreetMap Overpass returned HTTP {error.code}.") from error
@@ -126,7 +126,7 @@ class RouteInfrastructure:
         samples = _route_samples(coordinates)
         line = ",".join(f"{lat:.6f},{lon:.6f}" for lon, lat in samples)
         query = (
-            f'[out:json][timeout:20];('
+            f'[out:json][timeout:10];('
             f'nwr(around:{radius},{line})[highway="street_lamp"];'
             f'way(around:{radius},{line})[highway~"^(footway|path|pedestrian|steps)$"];'
             f');out geom center tags;'
@@ -135,15 +135,26 @@ class RouteInfrastructure:
         payload = None
         last_error: Exception | None = None
         endpoint_used = None
-        for endpoint in self.endpoints:
-            try:
-                candidate = self.fetcher(endpoint, body)
-                if not isinstance(candidate, dict) or not isinstance(candidate.get("elements"), list) or candidate.get("remark"):
-                    raise InfrastructureUnavailable("OpenStreetMap Overpass returned an incomplete response.")
-                payload, endpoint_used = candidate, endpoint
-                break
-            except Exception as error:
-                last_error = error
+        # Ask every Overpass mirror at once and use the first complete answer, so one slow
+        # or unreachable server no longer makes the lookup hang for close to a minute.
+        def ask(endpoint: str) -> tuple[str, dict[str, Any]]:
+            candidate = self.fetcher(endpoint, body)
+            if not isinstance(candidate, dict) or not isinstance(candidate.get("elements"), list) or candidate.get("remark"):
+                raise InfrastructureUnavailable("OpenStreetMap Overpass returned an incomplete response.")
+            return endpoint, candidate
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        pool = ThreadPoolExecutor(max_workers=len(self.endpoints))
+        try:
+            futures = {pool.submit(ask, endpoint): endpoint for endpoint in self.endpoints}
+            for future in as_completed(futures):
+                try:
+                    endpoint_used, payload = future.result()
+                    break
+                except Exception as error:
+                    last_error = error
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         if payload is None:
             raise InfrastructureUnavailable(str(last_error or "OpenStreetMap Overpass is unavailable.")) from last_error
 
