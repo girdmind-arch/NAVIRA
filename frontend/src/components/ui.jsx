@@ -1,3 +1,4 @@
+import { useId } from "react";
 const icons = {
   lotus: <><path d="M12 20c-3-4.4-2.8-9.8 0-15 2.8 5.2 3 10.6 0 15Z"/><path d="M11.4 19.3C6.6 18.5 3.5 15.8 2 11c5.1.4 8.2 3 9.4 8.3Z"/><path d="M12.6 19.3c4.8-.8 7.9-3.5 9.4-8.3-5.1.4-8.2 3-9.4 8.3Z"/><path d="M5 21h14"/></>,
   home: <><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-6h6v6"/></>,
@@ -19,6 +20,10 @@ const icons = {
   check: <path d="m5 12 4 4L19 6"/>,
   plus: <><path d="M12 5v14M5 12h14"/></>,
   logout: <><path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7"/></>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
+  moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>,
+  more: <><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></>,
+  sparkle: <><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7L19 17Z"/></>,
 };
 
 export function Icon({ name, size = 20, className = "" }) {
@@ -26,11 +31,19 @@ export function Icon({ name, size = 20, className = "" }) {
 }
 
 export function BrandMark({ size = 40, className = "" }) {
-  return <svg className={className} width={size} height={size} viewBox="0 0 48 48" fill="none" role="img" aria-label="NAVIRA shield and N">
-    <path d="M24 3.5 42 10.7v12.6c0 11.2-6.9 18.1-18 22.2C12.9 41.4 6 34.5 6 23.3V10.7L24 3.5Z" fill="var(--brand-mark-fill)" stroke="var(--brand-mark-stroke)" strokeWidth="1.8" strokeLinejoin="round"/>
-    <path d="M15.5 33V15.5L32.5 33V15.5" stroke="var(--brand-mark-ink)" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="m24 7.8 1.1 2.1 2.1 1.1-2.1 1.1-1.1 2.1-1.1-2.1-2.1-1.1 2.1-1.1L24 7.8Z" fill="var(--brand-mark-star)"/>
-    <path d="M27.8 27.8c2.6 1.2 2.8 3 .9 5" stroke="var(--brand-mark-path)" strokeWidth="1.8" strokeLinecap="round"/>
+  const id = useId().replace(/:/g, "");
+  return <svg className={`navira-logo ${className}`.trim()} width={size} height={size} viewBox="0 0 48 48" fill="none" role="img" aria-label="NAVIRA logo: a location pin inside a shield">
+    <defs>
+      <linearGradient id={`${id}-fill`} x1="10" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="var(--accent)"/>
+        <stop offset="1" stopColor="var(--accent-ink)"/>
+      </linearGradient>
+    </defs>
+    <path d="M24 3.2 40.6 9.4c.9.3 1.4 1.1 1.4 2v11.4c0 10.8-7 18.3-17.2 22.1a2.3 2.3 0 0 1-1.6 0C13 41.1 6 33.6 6 22.8V11.4c0-.9.5-1.7 1.4-2L24 3.2Z" fill={`url(#${id}-fill)`}/>
+    <path d="M10 12.2 24 7l14 5.2" stroke="#fff" strokeOpacity=".38" strokeWidth="1.4" strokeLinecap="round"/>
+    <path d="M24 12.5a7.6 7.6 0 0 0-7.6 7.6c0 5.6 7.6 12.4 7.6 12.4s7.6-6.8 7.6-12.4a7.6 7.6 0 0 0-7.6-7.6Z" fill="#fff"/>
+    <circle cx="24" cy="20.1" r="2.9" fill={`url(#${id}-fill)`}/>
+    <path d="M15.5 37.2c2.7-2.1 5.3-2.1 8.2 0 2.9 2.1 5.6 2.1 8.8-.2" stroke="#fff" strokeOpacity=".72" strokeWidth="1.7" strokeLinecap="round" strokeDasharray="0.1 3.2"/>
   </svg>;
 }
 

@@ -11,6 +11,8 @@ import NearbyFacilities from "./pages/NearbyFacilities";
 import PublicLocationShare from "./pages/PublicLocationShare";
 import PublicLiveLocation from "./pages/PublicLiveLocation";
 import Onboarding from "./pages/Onboarding";
+import CityBackdrop from "./components/CityBackdrop";
+import BottomNav from "./components/BottomNav";
 import "./App.css";
 
 const SyntheticRouteDemo = import.meta.env.DEV ? lazy(() => import("./pages/SyntheticRouteDemo")) : null;
@@ -26,6 +28,7 @@ const themeOptions = [
   { id: "warm-sand", name: "Warm Sand", color: "#e8d1b3" },
 ];
 const THEME_STORAGE_KEY = "navira-theme";
+const MODE_STORAGE_KEY = "navira-mode";
 const themeIds = new Set(themeOptions.map(({ id }) => id));
 
 const pageItems = [
@@ -53,6 +56,20 @@ function getStoredTheme() {
   return themeIds.has(savedTheme) ? savedTheme : "rose-quartz";
 }
 
+function getStoredMode() {
+  try {
+    const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === "midnight-black" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function withBackdrop(node) {
+  return <><CityBackdrop/>{node}</>;
+}
+
 export default function App() {
   const [page, setPage] = useState(getPageFromHash);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -65,6 +82,7 @@ export default function App() {
   const [shareToken, setShareToken] = useState(getShareTokenFromHash);
   const [theme, setTheme] = useState(getStoredTheme);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [mode, setMode] = useState(getStoredMode);
 
   function openSyntheticDemo() {
     window.location.hash = "/demo";
@@ -79,6 +97,18 @@ export default function App() {
       getComputedStyle(document.documentElement).getPropertyValue("--page").trim(),
     );
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.mode = mode;
+    try { window.localStorage.setItem(MODE_STORAGE_KEY, mode); } catch { /* storage is optional */ }
+  }, [mode]);
+
+  function toggleMode() {
+    const root = document.documentElement;
+    root.classList.add("theme-transition");
+    window.setTimeout(() => root.classList.remove("theme-transition"), 260);
+    setMode((current) => (current === "dark" ? "light" : "dark"));
+  }
 
   function navigate(next) {
     if (!pageItems.some((item) => item.id === next)) return;
@@ -141,15 +171,16 @@ export default function App() {
       </button>)}
     </div>}
   </div>;
-  if (shareToken) return <PublicLocationShare token={shareToken}/>;
+  const modeToggle = <button className="mode-toggle" type="button" onClick={toggleMode} aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={mode === "dark" ? "Light mode" : "Dark mode"}><Icon name={mode === "dark" ? "sun" : "moon"} size={18}/></button>;
+  if (shareToken) return withBackdrop(<PublicLocationShare token={shareToken}/>);
   const liveToken = window.location.hash.match(/^#\/live\/([a-f0-9]{64})$/)?.[1];
-  if (liveToken) return <PublicLiveLocation token={liveToken}/>;
-  if (authChecking) return <div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a>{themePicker}</header><main className="landing-loading" role="status">Restoring your NAVIRA session…</main></div>;
+  if (liveToken) return withBackdrop(<PublicLiveLocation token={liveToken}/>);
+  if (authChecking) return withBackdrop(<div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a><div className="landing-header__actions">{modeToggle}{themePicker}</div></header><main className="landing-loading" role="status">Restoring your NAVIRA session…</main></div>);
   if (page === "demo") return syntheticDemoEnabled && SyntheticRouteDemo
     ? <Suspense fallback={<main className="synthetic-demo-loading" role="status">Loading local synthetic demo…</main>}><SyntheticRouteDemo onBack={() => navigate("home")}/></Suspense>
     : <main className="synthetic-demo-unavailable"><h1>Synthetic demo is disabled</h1><p>Enable it only in local development by setting <code>VITE_NAVIRA_SYNTHETIC_DEMO=true</code> in the frontend environment file, then restart Vite.</p><a className="button button--primary" href="#/home">Return to NAVIRA</a></main>;
-  if (!authenticated && !onboardingComplete) return <Onboarding theme={theme} onGetStarted={() => { setOnboardingComplete(true); navigate("home"); }} showSyntheticDemo={syntheticDemoEnabled} onSyntheticDemo={openSyntheticDemo}/>;
-  if (!authenticated) return <div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a>{themePicker}</header><main className="landing-content">{syntheticDemoEnabled && <button className="button button--secondary synthetic-demo-login-link" type="button" onClick={openSyntheticDemo}>Open local synthetic route demo</button>}<ProfileSettings theme={theme} authenticated={false} setAuthenticated={setAuthenticated} onAuthenticated={() => { setAuthNotice(""); setAuthenticated(true); navigate("home"); }} onSignOut={signOut} authNotice={authNotice}/></main><footer className="landing-footer">Safer steps. Brighter tomorrows.</footer></div>;
+  if (!authenticated && !onboardingComplete) return withBackdrop(<Onboarding theme={theme} headerActions={<>{modeToggle}{themePicker}</>} onGetStarted={() => { setOnboardingComplete(true); navigate("home"); }} showSyntheticDemo={syntheticDemoEnabled} onSyntheticDemo={openSyntheticDemo}/>);
+  if (!authenticated) return withBackdrop(<div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a><div className="landing-header__actions">{modeToggle}{themePicker}</div></header><main className="landing-content">{syntheticDemoEnabled && <button className="button button--secondary synthetic-demo-login-link" type="button" onClick={openSyntheticDemo}>Open local synthetic route demo</button>}<ProfileSettings theme={theme} authenticated={false} setAuthenticated={setAuthenticated} onAuthenticated={() => { setAuthNotice(""); setAuthenticated(true); navigate("home"); }} onSignOut={signOut} authNotice={authNotice}/></main><footer className="landing-footer">Safer steps. Brighter tomorrows.</footer></div>);
   const onQuickSOS = () => { navigate("safety"); setPendingSOS(true); };
   let content;
   switch (page) {
@@ -166,7 +197,7 @@ export default function App() {
   const systemPages = pageItems.filter((item) => item.id === "profile");
   const renderNav = (items) => items.map((item) => <a key={item.id} href={"#/" + item.id} className={page === item.id ? "console-nav__link is-active" : "console-nav__link"} aria-current={page === item.id ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate(item.id); }}><Icon name={item.icon} size={20}/><span>{item.label}</span>{page === item.id && <i/>}</a>);
 
-  return <div className="app-shell console-shell">
+  return withBackdrop(<div className="app-shell console-shell">
     <aside className={mobileOpen ? "console-sidebar is-open" : "console-sidebar"}>
       <a className="brand console-brand" href="#/home" onClick={(event) => { event.preventDefault(); navigate("home"); }}><BrandMark size={40}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a>
       <div className="console-workspace"><span className="workspace-avatar"><Icon name="shield" size={15}/></span><span><strong>My workspace</strong><small>Personal safety</small></span><Icon name="chevron" size={14}/></div>
@@ -177,7 +208,7 @@ export default function App() {
     <section className="console-main">
       <header className="console-topbar">
         <div className="console-topbar__title"><button className="mobile-menu-button icon-button" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}><Icon name={mobileOpen ? "close" : "menu"}/></button><span className="topbar-overline">NAVIRA / WORKSPACE</span><strong>{current.label}</strong></div>
-        <div className="console-topbar__actions">{themePicker}<span className="console-context">JOURNEY AWARENESS</span><button className="top-sos" type="button" aria-label="Emergency SOS" onClick={onQuickSOS}><Icon name="shield" size={19}/><span className="visually-hidden">Emergency SOS</span></button><button className="avatar" aria-label="Open profile settings" onClick={() => navigate("profile")}><Icon name="user" size={17}/></button></div>
+        <div className="console-topbar__actions">{modeToggle}{themePicker}<span className="console-context">JOURNEY AWARENESS</span><button className="top-sos" type="button" aria-label="Emergency SOS" onClick={onQuickSOS}><Icon name="shield" size={19}/><span className="visually-hidden">Emergency SOS</span></button><button className="avatar" aria-label="Open profile settings" onClick={() => navigate("profile")}><Icon name="user" size={17}/></button></div>
       </header>
       {mobileOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}
       <main className="main-content" key={page}>
@@ -186,5 +217,6 @@ export default function App() {
       </main>
       <footer className="console-footer"><span>© NAVIRA · Journey awareness</span><span>Plan thoughtfully. Stay connected. Make informed journey decisions.</span></footer>
     </section>
-  </div>;
+    <BottomNav page={page} pages={pageItems} onNavigate={navigate}/>
+  </div>);
 }

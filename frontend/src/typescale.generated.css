@@ -1,0 +1,329 @@
+/* Generated: readable sizes for every rule that set text at 12px or below (Comfortable scale). */
+html[data-mode] .landing-footer { font-size: 13px !important; }
+html[data-mode] .landing-features strong { font-size: 14px !important; }
+html[data-mode] .landing-features small { font-size: 13px !important; }
+html[data-mode] .landing-disclaimer { font-size: 13px !important; }
+html[data-mode] .recommendation-summary strong { font-size: 14px !important; }
+html[data-mode] .recommendation-summary p, html[data-mode] .recommendation-evidence-grid p { font-size: 13px !important; }
+html[data-mode] .recommendation-evidence-grid small { font-size: 12.5px !important; }
+html[data-mode] .recommendation-evidence-grid strong { font-size: 14px !important; }
+html[data-mode] .route-tradeoffs > strong, html[data-mode] .evidence-sources > strong { font-size: 13px !important; }
+html[data-mode] .route-tradeoffs p, html[data-mode] .evidence-sources small { font-size: 12.5px !important; }
+html[data-mode] .evidence-sources a { font-size: 12.5px !important; }
+html[data-mode] .route-disclaimer { font-size: 12.5px !important; }
+html[data-mode] .recommended-badge { font-size: 12.5px !important; }
+html[data-mode] .journey-arrival span small, html[data-mode] .journey-arrival > small { font-size: 12.5px !important; }
+html[data-mode] .brand-copy small { font-size: 12.5px !important; }
+html[data-mode] .site-nav__link { font-size: 12.5px !important; }
+html[data-mode] .top-sos { font-size: 12.5px !important; }
+html[data-mode] .page-kicker { font-size: 12.5px !important; }
+html[data-mode] .footer-brand p { font-size: 12.5px !important; }
+html[data-mode] .footer-column > strong, html[data-mode] .footer-note > strong { font-size: 12.5px !important; }
+html[data-mode] .footer-column button { font-size: 12.5px !important; }
+html[data-mode] .footer-note p { font-size: 12.5px !important; }
+html[data-mode] .footer-bottom { font-size: 12.5px !important; }
+html[data-mode] .eyebrow { font-size: 12.5px !important; }
+html[data-mode] .page-description { font-size: 14px !important; }
+html[data-mode] .date-chip { font-size: 13px !important; }
+html[data-mode] .panel-subtitle { font-size: 13px !important; }
+html[data-mode] .muted-copy { font-size: 13px !important; }
+html[data-mode] .text-button { font-size: 13px !important; }
+html[data-mode] .button { font-size: 14px !important; }
+html[data-mode] .button--compact { font-size: 13px !important; }
+html[data-mode] .status-chip { font-size: 12.5px !important; }
+html[data-mode] .notice { font-size: 13px !important; }
+html[data-mode] .empty-state p { font-size: 13px !important; }
+html[data-mode] .loading-state { font-size: 14px !important; }
+html[data-mode] .welcome-kicker { font-size: 12.5px !important; }
+html[data-mode] .welcome-copy p { font-size: 14px !important; }
+html[data-mode] .quick-card strong { font-size: 14px !important; }
+html[data-mode] .quick-card > span:nth-of-type(2) { font-size: 12.5px !important; }
+html[data-mode] .map-empty strong { font-size: 14px !important; }
+html[data-mode] .map-empty p { font-size: 12.5px !important; }
+html[data-mode] .glance-row strong { font-size: 13px !important; }
+html[data-mode] .glance-row small { font-size: 12.5px !important; }
+html[data-mode] .glance-row .status-chip { font-size: 12.5px !important; }
+html[data-mode] .backend-status strong { font-size: 12.5px !important; }
+html[data-mode] .backend-status small { font-size: 12.5px !important; }
+html[data-mode] .status-label { font-size: 12.5px !important; }
+html[data-mode] .safety-note p { font-size: 12.5px !important; }
+html[data-mode] .safety-note button { font-size: 12.5px !important; }
+html[data-mode] .map-location-prompt.route-map { font-size: 13px !important; }
+html[data-mode] .map-attribution-note { font-size: 12.5px !important; }
+html[data-mode] .stack-form label, html[data-mode] .contact-form label { font-size: 13px !important; }
+html[data-mode] .stack-form input, html[data-mode] .stack-form select, html[data-mode] .stack-form textarea, html[data-mode] .contact-form input, html[data-mode] .radius-select select { font-size: 13px !important; }
+html[data-mode] .location-suggestions strong { font-size: 13px !important; }
+html[data-mode] .location-suggestions small, html[data-mode] .location-search__message { font-size: 12.5px !important; }
+html[data-mode] .route-privacy p { font-size: 12.5px !important; }
+html[data-mode] .map-overlay strong { font-size: 14px !important; }
+html[data-mode] .map-overlay p { font-size: 12.5px !important; }
+html[data-mode] .map-legend { font-size: 12.5px !important; }
+html[data-mode] .route-number { font-size: 13px !important; }
+html[data-mode] .route-option > span:not(.route-option__top) { font-size: 12.5px !important; }
+html[data-mode] .route-option small { font-size: 12.5px !important; }
+html[data-mode] .route-evidence-options h3 { font-size: 14px !important; }
+html[data-mode] .route-evidence-option > strong { font-size: 13px !important; }
+html[data-mode] .route-evidence-option p, html[data-mode] .route-evidence-option small, html[data-mode] .route-evidence-option li { font-size: 12.5px !important; }
+html[data-mode] .route-label, html[data-mode] .recommended-badge { font-size: 12.5px !important; }
+html[data-mode] .sharing-status-card strong { font-size: 14px !important; }
+html[data-mode] .sharing-status-card p { font-size: 12.5px !important; }
+html[data-mode] .share-expiry { font-size: 12.5px !important; }
+html[data-mode] .share-token label { font-size: 12.5px !important; }
+html[data-mode] .share-token input { font-size: 12.5px !important; }
+html[data-mode] .share-token small { font-size: 12.5px !important; }
+html[data-mode] .privacy-callout p { font-size: 12.5px !important; }
+html[data-mode] .map-status-caption { font-size: 12.5px !important; }
+html[data-mode] .auth-prompt h3 { font-size: 14px !important; }
+html[data-mode] .auth-prompt p { font-size: 12.5px !important; }
+html[data-mode] .emergency-heading p:not(.eyebrow) { font-size: 13px !important; }
+html[data-mode] .emergency-badge { font-size: 12.5px !important; }
+html[data-mode] .emergency-card strong { font-size: 14px !important; }
+html[data-mode] .emergency-card p { font-size: 12.5px !important; }
+html[data-mode] .emergency-card .button { font-size: 14px !important; }
+html[data-mode] .contact-call-card .panel-heading h3 { font-size: 14px !important; }
+html[data-mode] .contact-call-row strong { font-size: 12.5px !important; }
+html[data-mode] .contact-call-row small { font-size: 12.5px !important; }
+html[data-mode] .call-pill { font-size: 12.5px !important; }
+html[data-mode] .emergency-disclaimer p { font-size: 12.5px !important; }
+html[data-mode] .confirm-modal > p:not(.eyebrow) { font-size: 13px !important; }
+html[data-mode] .filter-label { font-size: 12.5px !important; }
+html[data-mode] .filter-pill { font-size: 12.5px !important; }
+html[data-mode] .radius-select { font-size: 12.5px !important; }
+html[data-mode] .radius-select select { font-size: 12.5px !important; }
+html[data-mode] .place-row__body strong { font-size: 13px !important; }
+html[data-mode] .place-category { font-size: 12.5px !important; }
+html[data-mode] .place-row__body small { font-size: 12.5px !important; }
+html[data-mode] .place-row__body a { font-size: 12.5px !important; }
+html[data-mode] .place-distance { font-size: 12.5px !important; }
+html[data-mode] .place-distance small { font-size: 12.5px !important; }
+html[data-mode] .unsupported-categories { font-size: 12.5px !important; }
+html[data-mode] .unsupported-categories strong { font-size: 12.5px !important; }
+html[data-mode] .map-key { font-size: 12.5px !important; }
+html[data-mode] .field-count { font-size: 12.5px !important; }
+html[data-mode] .location-state { font-size: 12.5px !important; }
+html[data-mode] .form-helper { font-size: 12.5px !important; }
+html[data-mode] .report-review-note p { font-size: 12.5px !important; }
+html[data-mode] .map-help { font-size: 12.5px !important; }
+html[data-mode] .route-news-candidates h5 { font-size: 12.5px !important; }
+html[data-mode] .route-news-candidates p, html[data-mode] .route-news-candidates small { font-size: 12.5px !important; }
+html[data-mode] .route-news-candidates li { font-size: 12.5px !important; }
+html[data-mode] .route-news-group > strong { font-size: 12.5px !important; }
+html[data-mode] .route-news-archive h5 { font-size: 12.5px !important; }
+html[data-mode] .route-news-archive > small { font-size: 12.5px !important; }
+html[data-mode] .report-row__main > div > strong { font-size: 13px !important; }
+html[data-mode] .report-row__main p { font-size: 12.5px !important; }
+html[data-mode] .report-row__main small { font-size: 12.5px !important; }
+html[data-mode] .report-list-note { font-size: 12.5px !important; }
+html[data-mode] .journey-preview__stats small { font-size: 12.5px !important; }
+html[data-mode] .journey-preview p { font-size: 12.5px !important; }
+html[data-mode] .shortcut-card strong { font-size: 12.5px !important; }
+html[data-mode] .shortcut-card small { font-size: 12.5px !important; }
+html[data-mode] .monitor-summary strong { font-size: 14px !important; }
+html[data-mode] .monitor-summary p { font-size: 12.5px !important; }
+html[data-mode] .agent-card h3 { font-size: 14px !important; }
+html[data-mode] .agent-card > p { font-size: 12.5px !important; }
+html[data-mode] .agent-card__foot span { font-size: 12.5px !important; }
+html[data-mode] .agent-card__foot strong { font-size: 12.5px !important; }
+html[data-mode] .source-table { font-size: 12.5px !important; }
+html[data-mode] .source-table th { font-size: 12.5px !important; }
+html[data-mode] .source-table td strong { font-size: 12.5px !important; }
+html[data-mode] .source-table td small { font-size: 12.5px !important; }
+html[data-mode] .agent-integrity-note p { font-size: 12.5px !important; }
+html[data-mode] .auth-tabs button { font-size: 12.5px !important; }
+html[data-mode] .account-summary strong { font-size: 12.5px !important; }
+html[data-mode] .account-summary p { font-size: 12.5px !important; }
+html[data-mode] .saved-contact strong { font-size: 12.5px !important; }
+html[data-mode] .saved-contact small { font-size: 12.5px !important; }
+html[data-mode] .saved-contact button { font-size: 12.5px !important; }
+html[data-mode] .preference-row strong { font-size: 12.5px !important; }
+html[data-mode] .preference-row small { font-size: 12.5px !important; }
+html[data-mode] .privacy-list li { font-size: 12.5px !important; }
+@media (max-width: 1180px) { html[data-mode] .site-nav__link { font-size: 12.5px !important; } }
+@media (max-width: 980px) { html[data-mode] .mobile-nav__link { font-size: 13px !important; } }
+@media (max-width: 640px) { html[data-mode] .brand-copy small { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .top-sos { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .mobile-nav__link { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .page-kicker { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .page-description { font-size: 13px !important; } }
+@media (max-width: 640px) { html[data-mode] .quick-card strong { font-size: 13px !important; } }
+@media (max-width: 640px) { html[data-mode] .quick-card > span:nth-of-type(2) { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .footer-bottom { font-size: 12.5px !important; } }
+html[data-mode] .console-brand .brand-copy small { font-size: 12.5px !important; }
+html[data-mode] .console-workspace strong { font-size: 12.5px !important; }
+html[data-mode] .console-workspace small, html[data-mode] .sidebar-profile small { font-size: 12.5px !important; }
+html[data-mode] .console-nav__label { font-size: 12.5px !important; }
+html[data-mode] .console-nav__link { font-size: 12.5px !important; }
+html[data-mode] .sidebar-safety-note > strong { font-size: 12.5px !important; }
+html[data-mode] .sidebar-safety-note p { font-size: 12.5px !important; }
+html[data-mode] .sidebar-safety-note button { font-size: 12.5px !important; }
+html[data-mode] .sidebar-profile strong { font-size: 12.5px !important; }
+html[data-mode] .topbar-overline { font-size: 12.5px !important; }
+html[data-mode] .console-topbar__title > strong { font-size: 14px !important; }
+html[data-mode] .system-status { font-size: 12.5px !important; }
+html[data-mode] .console-topbar .top-sos { font-size: 12.5px !important; }
+html[data-mode] .page-kicker { font-size: 12.5px !important; }
+html[data-mode] .console-footer { font-size: 12.5px !important; }
+html[data-mode] .eyebrow { font-size: 12.5px !important; }
+html[data-mode] .page-description { font-size: 13px !important; }
+html[data-mode] .date-chip { font-size: 12.5px !important; }
+html[data-mode] .welcome-kicker { font-size: 12.5px !important; }
+html[data-mode] .welcome-copy p { font-size: 12.5px !important; }
+@media (max-width: 640px) { html[data-mode] .console-topbar .top-sos { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .page-description { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .quick-card strong { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .quick-card > span:nth-of-type(2) { font-size: 12.5px !important; } }
+@media (max-width: 640px) { html[data-mode] .console-footer { font-size: 12.5px !important; } }
+html[data-mode] .safety-contact-row strong, html[data-mode] .active-shares > strong { font-size: 13px !important; }
+html[data-mode] .safety-contact-row small, html[data-mode] .active-share-row span { font-size: 12.5px !important; }
+html[data-mode] .safety-contact-phone { font-size: 13px !important; }
+html[data-mode] .share-contact-actions .button { font-size: 12.5px !important; }
+html[data-mode] .helpline-card__heading small { font-size: 12.5px !important; }
+html[data-mode] .helpline-card__heading strong { font-size: 14px !important; }
+html[data-mode] .helpline-card p { font-size: 12.5px !important; }
+html[data-mode] .helpline-card__actions > a:last-child { font-size: 12.5px !important; }
+html[data-mode] .facilities-location-control label { font-size: 13px !important; }
+html[data-mode] .facilities-location-control select { font-size: 13px !important; }
+html[data-mode] .facilities-filter button { font-size: 12.5px !important; }
+html[data-mode] .facility-card__body > strong { font-size: 13px !important; }
+html[data-mode] .facility-card__body > span, html[data-mode] .facility-card__body > small { font-size: 12.5px !important; }
+html[data-mode] .facility-card__body p { font-size: 12.5px !important; }
+html[data-mode] .facility-metrics { font-size: 12.5px !important; }
+html[data-mode] .facility-source { font-size: 12.5px !important; }
+html[data-mode] .facilities-disclaimer { font-size: 12.5px !important; }
+html[data-mode] .facilities-empty p, html[data-mode] .facilities-empty-state p { font-size: 13px !important; }
+html[data-mode] .facilities-empty-state strong { font-size: 13px !important; }
+html[data-mode] .traffic-summary-grid small { font-size: 12.5px !important; }
+html[data-mode] .route-evidence-option__heading h3 { font-size: 14px !important; }
+html[data-mode] .route-evidence-option__heading small { font-size: 12.5px !important; }
+html[data-mode] .route-evidence-panel h4 { font-size: 12.5px !important; }
+html[data-mode] .route-evidence-panel > strong { font-size: 13px !important; }
+html[data-mode] .route-evidence-panel p, html[data-mode] .route-evidence-panel small, html[data-mode] .route-evidence-panel li { font-size: 12.5px !important; }
+html[data-mode] .route-evidence-panel a { font-size: 12.5px !important; }
+html[data-mode] .weather-location > small { font-size: 12.5px !important; }
+html[data-mode] .weather-temperature span { font-size: 12.5px !important; }
+html[data-mode] .weather-forecast b { font-size: 13px !important; }
+html[data-mode] .weather-forecast small { font-size: 12.5px !important; }
+html[data-mode] .console-brand .brand-copy small { font-size: 12.5px !important; }
+html[data-mode] .console-workspace strong, html[data-mode] .sidebar-profile strong { font-size: 14px !important; }
+html[data-mode] .console-workspace small, html[data-mode] .sidebar-profile small { font-size: 13px !important; }
+html[data-mode] .console-nav__label { font-size: 12.5px !important; }
+html[data-mode] .console-nav__link { font-size: 14px !important; }
+html[data-mode] .sidebar-safety-note > strong { font-size: 14px !important; }
+html[data-mode] .sidebar-safety-note p { font-size: 13px !important; }
+html[data-mode] .sidebar-safety-note button { font-size: 13px !important; }
+html[data-mode] .topbar-overline { font-size: 12.5px !important; }
+html[data-mode] .console-context { font-size: 12.5px !important; }
+html[data-mode] .page-kicker { font-size: 12.5px !important; }
+html[data-mode] .console-footer { font-size: 13px !important; }
+html[data-mode] .eyebrow { font-size: 13px !important; }
+html[data-mode] .panel-subtitle, html[data-mode] .muted-copy { font-size: 14px !important; }
+html[data-mode] .button { font-size: 14px !important; }
+html[data-mode] .status-chip { font-size: 12.5px !important; }
+html[data-mode] .notice { font-size: 14px !important; }
+html[data-mode] .empty-state p { font-size: 14px !important; }
+html[data-mode] .loading-state { font-size: 14px !important; }
+html[data-mode] .form-helper, html[data-mode] .field-count { font-size: 13px !important; }
+html[data-mode] .welcome-kicker { font-size: 13px !important; }
+html[data-mode] .quick-card > span:nth-of-type(2) { font-size: 14px !important; }
+html[data-mode] .map-empty p { font-size: 14px !important; }
+html[data-mode] .glance-row strong { font-size: 14px !important; }
+html[data-mode] .glance-row small { font-size: 13px !important; }
+html[data-mode] .safety-note p { font-size: 14px !important; }
+html[data-mode] .stack-form label, html[data-mode] .contact-form label, html[data-mode] .facilities-location-control label { font-size: 14px !important; }
+html[data-mode] .stack-form input, html[data-mode] .stack-form select, html[data-mode] .stack-form textarea, html[data-mode] .contact-form input, html[data-mode] .radius-select select, html[data-mode] .facilities-location-control select, html[data-mode] input, html[data-mode] select, html[data-mode] textarea { font-size: 14px !important; }
+html[data-mode] .route-privacy p { font-size: 13px !important; }
+html[data-mode] .map-location-prompt.route-map { font-size: 14px !important; }
+html[data-mode] .map-attribution-note { font-size: 12.5px !important; }
+html[data-mode] .route-map-legend, html[data-mode] .map-legend { font-size: 13px !important; }
+html[data-mode] .route-number { font-size: 13px !important; }
+html[data-mode] .route-option > span:not(.route-option__top) { font-size: 14px !important; }
+html[data-mode] .route-option small { font-size: 13px !important; }
+html[data-mode] .route-evidence-option__heading small { font-size: 13px !important; }
+html[data-mode] .route-evidence-panel h4 { font-size: 14px !important; }
+html[data-mode] .route-evidence-panel > strong { font-size: 14px !important; }
+html[data-mode] .route-evidence-option p, html[data-mode] .route-evidence-option small, html[data-mode] .route-evidence-option li { font-size: 13px !important; }
+html[data-mode] .route-disclaimer { font-size: 14px !important; }
+html[data-mode] .journey-glance__route small, html[data-mode] .journey-glance__metrics small { font-size: 12.5px !important; }
+html[data-mode] .journey-glance__route strong { font-size: 13px !important; }
+html[data-mode] .journey-glance__metrics strong { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard-heading p { font-size: 13px !important; }
+html[data-mode] .route-dashboard-heading > span { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .route-disclaimer { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .evidence-card > p { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .evidence-status { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .evidence-details summary { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .evidence-details h4 { font-size: 13px !important; }
+html[data-mode] .route-dashboard .evidence-details p, html[data-mode] .route-dashboard .evidence-details small, html[data-mode] .route-dashboard .evidence-details li { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .evidence-details a { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .weather-forecast--dashboard b { font-size: 14px !important; }
+html[data-mode] .route-dashboard .weather-forecast--dashboard small { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .assessment-factors span { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .infrastructure-night-status { font-size: 12.5px !important; }
+html[data-mode] .route-dashboard .infrastructure-corridor-control { font-size: 12.5px !important; }
+html[data-mode] .infrastructure-page__notice { font-size: 14px !important; }
+html[data-mode] .infrastructure-layer-card__copy strong { font-size: 14px !important; }
+html[data-mode] .infrastructure-layer-card__copy small { font-size: 12.5px !important; }
+html[data-mode] .infrastructure-map-panel__heading p { font-size: 13px !important; }
+html[data-mode] .infrastructure-data-status { font-size: 12.5px !important; }
+html[data-mode] .infrastructure-map-overlay { font-size: 13px !important; }
+html[data-mode] .infrastructure-map-footer { font-size: 12.5px !important; }
+html[data-mode] .infrastructure-map-message { font-size: 13px !important; }
+html[data-mode] .infrastructure-source-row strong { font-size: 12.5px !important; }
+html[data-mode] .infrastructure-source-row span, html[data-mode] .infrastructure-source-row a { font-size: 12.5px !important; }
+html[data-mode] .privacy-callout p, html[data-mode] .report-review-note p { font-size: 14px !important; }
+html[data-mode] .safety-contact-row strong, html[data-mode] .active-shares > strong { font-size: 14px !important; }
+html[data-mode] .safety-contact-row small, html[data-mode] .active-share-row span { font-size: 13px !important; }
+html[data-mode] .safety-contact-phone { font-size: 14px !important; }
+html[data-mode] .helpline-card__heading small { font-size: 12.5px !important; }
+html[data-mode] .helpline-card__heading strong { font-size: 14px !important; }
+html[data-mode] .helpline-card p, html[data-mode] .emergency-disclaimer { font-size: 13px !important; }
+html[data-mode] .report-row__main > div > strong { font-size: 14px !important; }
+html[data-mode] .report-row__main p { font-size: 14px !important; }
+html[data-mode] .report-row__main small, html[data-mode] .report-list-note { font-size: 13px !important; }
+html[data-mode] .location-state { font-size: 13px !important; }
+html[data-mode] .facility-card__body > strong { font-size: 14px !important; }
+html[data-mode] .facility-card__body > span, html[data-mode] .facility-card__body > small, html[data-mode] .facility-card__body p, html[data-mode] .facilities-disclaimer { font-size: 13px !important; }
+html[data-mode] .facility-metrics { font-size: 13px !important; }
+html[data-mode] .facilities-filter button { font-size: 14px !important; }
+html[data-mode] .facilities-empty p, html[data-mode] .facilities-empty-state p { font-size: 14px !important; }
+html[data-mode] .journey-preview__stats small, html[data-mode] .journey-preview p, html[data-mode] .journey-arrival span small, html[data-mode] .journey-arrival > small { font-size: 13px !important; }
+html[data-mode] .shortcut-card strong { font-size: 14px !important; }
+html[data-mode] .shortcut-card small { font-size: 13px !important; }
+html[data-mode] .monitor-summary p, html[data-mode] .agent-card > p, html[data-mode] .agent-card__foot span, html[data-mode] .agent-card__foot strong { font-size: 13px !important; }
+html[data-mode] .auth-tabs button { font-size: 14px !important; }
+html[data-mode] .account-summary strong { font-size: 14px !important; }
+html[data-mode] .account-summary p { font-size: 13px !important; }
+html[data-mode] .saved-contact strong { font-size: 14px !important; }
+html[data-mode] .saved-contact small { font-size: 13px !important; }
+@media (max-width: 560px) { html[data-mode] .page-description { font-size: 14px !important; } }
+@media (max-width: 560px) { html[data-mode] .quick-card strong { font-size: 14px !important; } }
+@media (max-width: 560px) { html[data-mode] .quick-card > span:nth-of-type(2) { font-size: 13px !important; } }
+html[data-mode] .synthetic-demo-banner--inline { font-size: 12.5px !important; }
+html[data-mode] .synthetic-crime-example strong { font-size: 12.5px !important; }
+html[data-mode] .synthetic-crime-example b { font-size: 12.5px !important; }
+html[data-mode] .synthetic-crime-example small { font-size: 12.5px !important; }
+html[data-mode] .synthetic-scenario-panel > p:last-child { font-size: 14px !important; }
+html[data-mode] .synthetic-route-stats small, html[data-mode] .synthetic-context-value > span { font-size: 12.5px !important; }
+html[data-mode] .synthetic-access, html[data-mode] .synthetic-route-note { font-size: 13px !important; }
+html[data-mode] .synthetic-context-value strong { font-size: 13px !important; }
+html[data-mode] .synthetic-context-value > small { font-size: 12.5px !important; }
+html[data-mode] .synthetic-context-value .synthetic-field-label { font-size: 12.5px !important; }
+html[data-mode] .synthetic-emergency-panel p:last-child { font-size: 13px !important; }
+html[data-mode] .synthetic-contact-list > div { font-size: 13px !important; }
+html[data-mode] .synthetic-contact-list strong { font-size: 12.5px !important; }
+html[data-mode] .synthetic-demo-footer-note { font-size: 13px !important; }
+@media (max-width: 640px) { html[data-mode] .synthetic-demo-header .button { font-size: 12.5px !important; } }
+html[data-mode] .console-context { font-size: 12.5px !important; }
+html[data-mode] .onboarding-demo-link { font-size: 13px !important; }
+html[data-mode] .theme-picker__trigger { font-size: 13px !important; }
+html[data-mode] .theme-picker__option { font-size: 14px !important; }
+@media (max-width: 560px) { html[data-mode] .onboarding-brand > span { font-size: 13px !important; } }
+@media (max-width: 560px) { html[data-mode] .landing-brand .brand-copy small { font-size: 12.5px !important; } }
+html[data-mode] .console-nav__label { font-size: 14px !important; }
+html[data-mode] .console-workspace small, html[data-mode] .sidebar-profile small, html[data-mode] .sidebar-safety-note p, html[data-mode] .sidebar-safety-note button { font-size: 14px !important; }
+html[data-mode] .topbar-overline { font-size: 14px !important; }
+html[data-mode] .page-kicker, html[data-mode] .eyebrow { font-size: 14px !important; }
+html[data-mode] .location-suggestions button small { font-size: 14px !important; }
+html[data-mode] .route-number, html[data-mode] .route-label, html[data-mode] .recommended-badge { font-size: 14px !important; }
+html[data-mode] .map-legend, html[data-mode] .route-map-legend { font-size: 14px !important; }
+html[data-mode] .status-chip { font-size: 14px !important; }

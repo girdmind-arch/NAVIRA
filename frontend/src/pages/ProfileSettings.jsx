@@ -148,7 +148,7 @@ export default function ProfileSettings({ authenticated, setAuthenticated, onAut
 
   if (!authenticated) {
     return <div className="landing-grid">
-      <section className="landing-intro">
+      <section className="landing-intro auth-hero">
         <p className="eyebrow">SAFER STEPS. BRIGHTER TOMORROWS.</p>
         <h1>Navigate freely. Move confidently.</h1>
         <p className="landing-lede">Plan a route with clear context, share your location by choice, and stay connected to people you trust.</p>
