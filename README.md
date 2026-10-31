@@ -10,7 +10,7 @@ Rather than focusing only on the shortest or fastest route, NAVIRA aims to provi
 
 ## 🌍 1. Problem Statement
 
-Traditional navigation applications primarily optimize routes based on distance and estimated travel time. However, these factors may not address all the concerns of people travelling alone, especially women.
+Traditional navigation applications primarily optimize routes based on distance and estimated travel time. However, these factors may not address all the concerns of people travelling alone, especially for women.
 
 Users may also need information about:
 
