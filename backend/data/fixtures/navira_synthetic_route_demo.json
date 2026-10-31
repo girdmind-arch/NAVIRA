@@ -1,0 +1,307 @@
+{
+  "metadata": {
+    "dataset_id": "navira-synthetic-demo-v1",
+    "title": "NAVIRA synthetic route-context demonstration",
+    "record_type": "synthetic_demo_only",
+    "generated_for": "UI and pipeline demonstration",
+    "generated_on": "2026-10-30",
+    "real_source_data_used": false,
+    "disclaimer": "Every route, observation, report, restriction, and time in this file is invented. This is not NCRB, Delhi Police, Safetipin, OSM, traffic-provider, weather-provider, or community data. Fictional values must never be presented as evidence or used for real travel, safety decisions, model training, or evaluation. Synthetic crime-rate examples use invented counts and fictional population denominators; they do not represent real locations or actual crime rates.",
+    "source_catalog": [
+      {
+        "name": "OpenStreetMap / OSRM",
+        "real_source_url": "https://www.openstreetmap.org/",
+        "role_if_connected": "Road and pedestrian geometry, mapped access tags, and route estimates",
+        "used_for_records": false
+      },
+      {
+        "name": "Open-Meteo",
+        "real_source_url": "https://open-meteo.com/en/docs",
+        "role_if_connected": "Weather context",
+        "used_for_records": false
+      },
+      {
+        "name": "TomTom Traffic API",
+        "real_source_url": "https://docs.tomtom.com/traffic-api/documentation/tomtom-maps/v1/product-information/introduction",
+        "role_if_connected": "Live traffic flow and travel delay context",
+        "used_for_records": false
+      },
+      {
+        "name": "NCRB Crime in India catalog",
+        "real_source_url": "https://www.data.gov.in/catalog/crime-india-2023",
+        "role_if_connected": "Historical crime statistics at the published geographic level only",
+        "used_for_records": false
+      },
+      {
+        "name": "Delhi Police press releases",
+        "real_source_url": "https://www.delhipolice.gov.in/press-releases.html",
+        "role_if_connected": "Selective source-linked report candidates for human review",
+        "used_for_records": false
+      },
+      {
+        "name": "Safetipin / IUDX",
+        "real_source_url": "https://safetipin.com/",
+        "role_if_connected": "Public-space safety audit data, subject to resource availability and access terms",
+        "used_for_records": false
+      },
+      {
+        "name": "NAVIRA community reports",
+        "real_source_url": null,
+        "role_if_connected": "User-submitted, time-limited reports with verification status",
+        "used_for_records": false
+      }
+    ]
+  },
+  "scenario": {
+    "scenario_id": "fictional-town-evening-commute-01",
+    "fictional": true,
+    "city": "Demo Town (fictional; not a real place)",
+    "origin": "Fictional Market Gate",
+    "destination": "Fictional Riverside Library",
+    "departure_local": "2026-10-30T19:00:00+05:30",
+    "note": "Place names and routes are fictional labels. No latitude/longitude is supplied, so this scenario cannot be plotted onto real streets."
+  },
+  "route_options": [
+    {
+      "route_id": "demo-car-01",
+      "provenance": {
+        "status": "synthetic_example",
+        "real_source_data_used": false
+      },
+      "mode": "car",
+      "route_label": "Fictional Main Street",
+      "distance_km": 4.8,
+      "estimated_minutes": 16,
+      "vehicle_access": {
+        "status": "synthetic_example",
+        "allowed_modes": [
+          "car",
+          "motorcycle",
+          "walking"
+        ],
+        "restriction_note": "Invented example only; no real road rule was checked."
+      },
+      "journey_conditions": {
+        "traffic": {
+          "status": "synthetic_example",
+          "level": "moderate",
+          "estimated_delay_minutes": 4
+        },
+        "weather": {
+          "status": "synthetic_example",
+          "condition": "light rain",
+          "precipitation_probability_percent": 40
+        },
+        "lighting_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 2,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "visibility_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 2,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "people_activity": {
+          "status": "synthetic_example",
+          "level": "moderate",
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "nearby_help": {
+          "status": "synthetic_example",
+          "mapped_police_or_health_facilities": 2
+        }
+      },
+      "reported_information": {
+        "status": "synthetic_example",
+        "community_reports": 1,
+        "verified_reports": 0,
+        "note": "Invented count; do not treat as an incident rate."
+      },
+      "safety_score": null,
+      "safety_score_status": "not_supported"
+    },
+    {
+      "route_id": "demo-bike-01",
+      "provenance": {
+        "status": "synthetic_example",
+        "real_source_data_used": false
+      },
+      "mode": "motorcycle",
+      "route_label": "Fictional Canal Road",
+      "distance_km": 5.3,
+      "estimated_minutes": 14,
+      "vehicle_access": {
+        "status": "synthetic_example",
+        "allowed_modes": [
+          "car",
+          "motorcycle"
+        ],
+        "restriction_note": "Invented example showing mode-specific access. No real road rule was checked."
+      },
+      "journey_conditions": {
+        "traffic": {
+          "status": "synthetic_example",
+          "level": "light",
+          "estimated_delay_minutes": 1
+        },
+        "weather": {
+          "status": "synthetic_example",
+          "condition": "light rain",
+          "precipitation_probability_percent": 40
+        },
+        "lighting_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 1,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "visibility_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 1,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "people_activity": {
+          "status": "synthetic_example",
+          "level": "low",
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "nearby_help": {
+          "status": "synthetic_example",
+          "mapped_police_or_health_facilities": 1
+        }
+      },
+      "reported_information": {
+        "status": "synthetic_example",
+        "community_reports": 0,
+        "verified_reports": 0,
+        "note": "Invented count; zero reports must not be interpreted as zero incidents or proof of safety."
+      },
+      "safety_score": null,
+      "safety_score_status": "not_supported"
+    },
+    {
+      "route_id": "demo-walk-01",
+      "provenance": {
+        "status": "synthetic_example",
+        "real_source_data_used": false
+      },
+      "mode": "walking",
+      "route_label": "Fictional Garden Path",
+      "distance_km": 3.6,
+      "estimated_minutes": 45,
+      "vehicle_access": {
+        "status": "synthetic_example",
+        "allowed_modes": [
+          "walking"
+        ],
+        "restriction_note": "Invented example showing a pedestrian-only path. No real access condition was checked."
+      },
+      "journey_conditions": {
+        "traffic": {
+          "status": "not_applicable_to_pedestrian_path",
+          "level": null,
+          "estimated_delay_minutes": null
+        },
+        "weather": {
+          "status": "synthetic_example",
+          "condition": "light rain",
+          "precipitation_probability_percent": 40
+        },
+        "lighting_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 3,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "visibility_audit": {
+          "status": "synthetic_example",
+          "rating_0_to_3": 3,
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "people_activity": {
+          "status": "synthetic_example",
+          "level": "high",
+          "observed_at": "2026-10-29T20:00:00+05:30"
+        },
+        "nearby_help": {
+          "status": "synthetic_example",
+          "mapped_police_or_health_facilities": 3
+        }
+      },
+      "reported_information": {
+        "status": "synthetic_example",
+        "community_reports": 0,
+        "verified_reports": 0,
+        "note": "Invented count; zero reports must not be interpreted as zero incidents or proof of safety."
+      },
+      "safety_score": null,
+      "safety_score_status": "not_supported"
+    }
+  ],
+  "emergency_demo": {
+    "status": "synthetic_interface_example",
+    "trusted_contacts": [
+      {
+        "name": "Demo Contact A",
+        "phone_display": "NO TELEPHONE NUMBER",
+        "is_real": false
+      },
+      {
+        "name": "Demo Contact B",
+        "phone_display": "NO TELEPHONE NUMBER",
+        "is_real": false
+      }
+    ],
+    "note": "Fictional display-only placeholders. No phone numbers, dial links, or messaging links are provided."
+  },
+  "use_instructions": [
+    "Use only in an isolated demo or screenshot workflow with a persistent synthetic-data banner.",
+    "Do not ingest into NAVIRA's incident, official-statistics, or verified-audit tables.",
+    "Do not attribute any generated value to a real source listed in source_catalog.",
+    "Do not use this file to train, validate, or evaluate a safety model.",
+    "Replace each synthetic field with a properly licensed, source-linked observation before real route ranking."
+  ],
+  "synthetic_crime_rate_examples": [
+    {
+      "example_id": "demo-rate-market-01",
+      "fictional_area": "Fictional Market Quarter",
+      "period": "Illustrative demo year",
+      "example_reports": 18,
+      "fictional_population": 12000,
+      "example_rate_per_10000_fictional_residents": 15,
+      "provenance": {
+        "status": "synthetic_example",
+        "synthetic": true,
+        "real_source_data_used": false
+      },
+      "note": "Invented example count and population; not a real crime rate."
+    },
+    {
+      "example_id": "demo-rate-canal-01",
+      "fictional_area": "Fictional Canal Ward",
+      "period": "Illustrative demo year",
+      "example_reports": 5,
+      "fictional_population": 10000,
+      "example_rate_per_10000_fictional_residents": 5,
+      "provenance": {
+        "status": "synthetic_example",
+        "synthetic": true,
+        "real_source_data_used": false
+      },
+      "note": "Invented example count and population; not a real crime rate."
+    },
+    {
+      "example_id": "demo-rate-garden-01",
+      "fictional_area": "Fictional Garden District",
+      "period": "Illustrative demo year",
+      "example_reports": 21,
+      "fictional_population": 7000,
+      "example_rate_per_10000_fictional_residents": 30,
+      "provenance": {
+        "status": "synthetic_example",
+        "synthetic": true,
+        "real_source_data_used": false
+      },
+      "note": "Invented example count and population; not a real crime rate."
+    }
+  ]
+}

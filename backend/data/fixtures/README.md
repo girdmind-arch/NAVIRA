@@ -1,0 +1,2 @@
+# Fixtures
+`ncrb_delhi_city_women_crimes.json` contains public aggregate NCRB city totals. `navira_synthetic_route_demo.json` contains fictional route examples and invented crime-rate illustrations. The synthetic fixture is served only through the separate read-only demo endpoint; it is never imported into SQLite or used for safety evidence, scoring, training, or evaluation. Do not present its values as observed data.

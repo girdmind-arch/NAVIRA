@@ -1,0 +1,18 @@
+{
+  "source": {
+    "name": "National Crime Records Bureau (NCRB), Crime in India",
+    "reference": "https://www.ncrb.mha.gov.in/crime-in-india.html ; https://www.ncrb.gov.in/uploads/nationalcrimerecordsbureau/custom/1701940032TABLE3B1.pdf ; https://data.opencity.in/dataset/7d883875-921a-4820-b298-713c6219bd90/resource/608413b5-5ff8-4b2b-ba8a-4c620c8837ba/download/table_3b.1.xlsx",
+    "permission_basis": "Published government statistical tables accessed for public research use; aggregate counts only.",
+    "geographic_precision": "metropolitan city (Delhi City; NCRB city definition)",
+    "retrieved_at": "2026-10-28T00:00:00+05:30",
+    "version": "Crime in India 2022 Table 3B.1 (2020-2022); Crime in India 2024 Table 3B.1 (2022-2024)",
+    "notes": "NCRB metropolitan Delhi City only; not Delhi UT/NCT totals and not the wider NCR. Counts are registered cases, not prevalence estimates. NCRB notes that cities should not be compared purely by case counts. The 2024 report covers the transition to BNS; interpret year-to-year comparisons with care."
+  },
+  "records": [
+    {"year": 2020, "geography_id": "Delhi City", "geography_type": "metropolitan", "geography_scope": "delhi_nct", "category": "crime_against_women_total", "count": 9782, "notes": "NCRB Table 3B.1, Crime in India 2022."},
+    {"year": 2021, "geography_id": "Delhi City", "geography_type": "metropolitan", "geography_scope": "delhi_nct", "category": "crime_against_women_total", "count": 13982, "notes": "NCRB Table 3B.1, Crime in India 2022."},
+    {"year": 2022, "geography_id": "Delhi City", "geography_type": "metropolitan", "geography_scope": "delhi_nct", "category": "crime_against_women_total", "count": 14158, "notes": "NCRB Table 3B.1, Crime in India 2022 and 2024; overlapping values agree."},
+    {"year": 2023, "geography_id": "Delhi City", "geography_type": "metropolitan", "geography_scope": "delhi_nct", "category": "crime_against_women_total", "count": 13366, "notes": "NCRB Table 3B.1, Crime in India 2024."},
+    {"year": 2024, "geography_id": "Delhi City", "geography_type": "metropolitan", "geography_scope": "delhi_nct", "category": "crime_against_women_total", "count": 13396, "notes": "NCRB Table 3B.1, Crime in India 2024."}
+  ]
+}

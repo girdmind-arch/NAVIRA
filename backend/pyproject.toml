@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "navira-prototype"
+version = "0.1.0"
+description = "Evidence-first safety navigation prototype for Delhi NCT"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110,<1",
+  "uvicorn[standard]>=0.27,<1",
+  "pydantic>=2.6,<3",
+  "sqlalchemy>=2.0,<3",
+  "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+ml = ["scikit-learn>=1.4,<2", "joblib>=1.3,<2"]
+test = ["pytest>=8,<9", "httpx>=0.27,<1", "ruff>=0.5,<1"]
+
+[project.scripts]
+navira = "backend.app.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = ".."}
+
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["backend*", "ml*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
