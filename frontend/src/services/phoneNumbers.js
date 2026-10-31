@@ -37,6 +37,12 @@ export function getPreferredCountry(profile) {
   ].map(getCountryCode).find(Boolean);
   if (profileCountry) return profileCountry;
 
+  // Many devices in India use an en-US locale, so the time zone is a better signal for India.
+  try {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timeZone === "Asia/Kolkata" || timeZone === "Asia/Calcutta") return "IN";
+  } catch { /* fall back to the browser locale */ }
+
   const locales = navigator.languages?.length ? navigator.languages : [navigator.language];
   for (const locale of locales) {
     if (typeof locale !== "string" || !locale) continue;

@@ -5,6 +5,29 @@ import { ROUTE_COLORS } from "../components/routeColors";
 import { journeysApi, newsApi, routesApi, syntheticDemoApi } from "../services/api";
 
 const EMPTY_ROUTES = [];
+const SAVED_SEARCH_KEY = "navira.routePlanner.last.v1";
+const SAVED_SEARCH_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+function loadSavedSearch() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SAVED_SEARCH_KEY) || "null");
+    if (!saved?.modeResults || !saved.originPlace || !saved.destinationPlace) return null;
+    if (!(Date.now() - saved.savedAt < SAVED_SEARCH_MAX_AGE_MS)) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function toRouteContext(result, originPlace, destinationPlace, selectedRouteId) {
+  const routeOrigin = result?.resolved_locations?.origin || originPlace;
+  const routeDestination = result?.resolved_locations?.destination || destinationPlace;
+  return {
+    origin: { query: routeOrigin.query, display_name: routeOrigin.display_name, latitude: routeOrigin.latitude, longitude: routeOrigin.longitude },
+    destination: { query: routeDestination.query, display_name: routeDestination.display_name, latitude: routeDestination.latitude, longitude: routeDestination.longitude },
+    selectedRouteId,
+  };
+}
 
 function formatDistance(meters) {
   if (typeof meters !== "number") return "—";
@@ -96,14 +119,15 @@ function LocationSearchField({ id, label, value, setValue, onSelect, selected, t
 }
 
 export default function RoutePlanner({ authenticated, onRouteContext, onNavigate }) {
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
-  const [mode, setMode] = useState("car");
-  const [originPlace, setOriginPlace] = useState(null);
-  const [destinationPlace, setDestinationPlace] = useState(null);
-  const [result, setResult] = useState(null);
-  const [modeResults, setModeResults] = useState(null);
-  const [selected, setSelected] = useState(0);
+  const [savedSearch] = useState(loadSavedSearch);
+  const [origin, setOrigin] = useState(savedSearch?.origin || "");
+  const [destination, setDestination] = useState(savedSearch?.destination || "");
+  const [mode, setMode] = useState(savedSearch?.mode || "car");
+  const [originPlace, setOriginPlace] = useState(savedSearch?.originPlace || null);
+  const [destinationPlace, setDestinationPlace] = useState(savedSearch?.destinationPlace || null);
+  const [result, setResult] = useState(savedSearch?.modeResults?.[savedSearch.mode] || null);
+  const [modeResults, setModeResults] = useState(savedSearch?.modeResults || null);
+  const [selected, setSelected] = useState(savedSearch?.selected || 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [trafficByRoute, setTrafficByRoute] = useState({});
@@ -122,6 +146,24 @@ export default function RoutePlanner({ authenticated, onRouteContext, onNavigate
   const [infrastructureCorridor, setInfrastructureCorridor] = useState(100);
   const [syntheticDemoData, setSyntheticDemoData] = useState(null);
   const [syntheticDemoError, setSyntheticDemoError] = useState("");
+
+  // Restore the last search's locations for Nearby Facilities after a refresh or revisit.
+  useEffect(() => {
+    const restored = savedSearch?.modeResults?.[savedSearch.mode];
+    if (!restored?.alternatives?.length) return;
+    const route = restored.alternatives[savedSearch.selected || 0] || restored.alternatives[0];
+    onRouteContext?.(toRouteContext(restored, savedSearch.originPlace, savedSearch.destinationPlace, route.id || null));
+  }, [savedSearch, onRouteContext]);
+
+  // Remember the latest search in this browser so leaving the page or refreshing does not lose it.
+  useEffect(() => {
+    if (!modeResults || !originPlace || !destinationPlace) return;
+    try {
+      window.localStorage.setItem(SAVED_SEARCH_KEY, JSON.stringify({
+        savedAt: Date.now(), origin, destination, mode, originPlace, destinationPlace, modeResults, selected,
+      }));
+    } catch { /* storage full or unavailable; the search still works for this visit */ }
+  }, [origin, destination, mode, originPlace, destinationPlace, modeResults, selected]);
 
   useEffect(() => {
     if (typeof syntheticDemoApi?.get !== "function") return undefined;
@@ -449,6 +491,7 @@ export default function RoutePlanner({ authenticated, onRouteContext, onNavigate
           <button className="button button--primary button--wide" type="submit" disabled={busy}>{busy ? <><span className="spinner"/> Comparing travel modes…</> : <>Compare car, motorcycle &amp; walking <span>→</span></>}</button>
         </form>
         <div className="route-privacy"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span><p>{mode === "walking" ? "Walking directions use the openrouteservice foot-walking profile. Map data may omit sidewalks, crossings, access restrictions, or current conditions." : mode === "motorcycle" ? "Geoapify motorcycle routing is used when configured. Without a key, an OSRM car-profile fallback may appear; it is not motorcycle-optimized. Follow posted signs and restrictions." : "Place searches use OpenStreetMap Nominatim and car routes use OSRM road-network geometry. Mapped access rules may be incomplete; follow current signs and local restrictions."}</p></div>
+        {savedSearch && result === savedSearch.modeResults?.[savedSearch.mode] && <p className="form-helper">Showing your last route search from {new Date(savedSearch.savedAt).toLocaleString()}. Search again for fresh routes.</p>}
         {error && <Notice kind="error">{error}</Notice>}
       </section>
       <section className="route-results-area">

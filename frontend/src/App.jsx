@@ -118,6 +118,7 @@ export default function App() {
     try { await authApi.logout(); }
     catch (error) { setAuthNotice("Could not confirm sign out with the server: " + error.message); }
     setToken(null);
+    try { window.localStorage.removeItem("navira.routePlanner.last.v1"); } catch { /* storage is optional */ }
     setAuthenticated(false);
     setOnboardingComplete(true);
     window.location.hash = "/home";

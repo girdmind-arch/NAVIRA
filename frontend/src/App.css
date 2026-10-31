@@ -266,3 +266,9 @@ input,select,textarea { color: #302b34 !important; border-color: #e6e1e8 !import
 .weather-agent-status { display: flex; align-items: center; gap: 6px; }.weather-agent-status i { width: 7px; height: 7px; border-radius: 50%; background: #45a77b; box-shadow: 0 0 0 3px #45a77b22; }.weather-location { display: grid; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #eee9f3; }.weather-location > small { color: #817b85; font-size: 8px; }.weather-temperature { color: #453b55 !important; font-size: 15px !important; }.weather-temperature span { color: #817b85; font-size: 9px; font-weight: 500; }.weather-forecast { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; margin-top: 3px; }.weather-forecast > span { display: grid; align-content: start; gap: 3px; padding: 6px; border: 1px solid #eee9f3; border-radius: 7px; background: #fcfaff; }.weather-forecast b { color: #453b55; font-size: 10px; }.weather-forecast small { overflow-wrap: anywhere; color: #817b85; font-size: 7px; line-height: 1.4; }
 .weather-agent-panel .weather-consideration { padding: 7px; border-radius: 7px; color: #775c88; background: #f8f1fb; }
 @media (max-width: 640px) { .route-evidence-grid { grid-template-columns: 1fr; }.route-evidence-option__heading { align-items: flex-start; flex-direction: column; } }
+/* Trusted-contact form: one label/field per row, country code beside the number. */
+.contact-form { grid-template-columns: minmax(0, 1fr); }
+.contact-form > * { grid-column: 1 / -1; }
+.contact-phone-input { display: grid; grid-template-columns: minmax(0, 13rem) minmax(0, 1fr); gap: 8px; }
+.contact-phone-input select { width: 100%; min-width: 0; min-height: 39px; padding: 0 8px; border: 1px solid var(--border-subtle, #e0e1eb); border-radius: 9px; color: inherit; background: var(--surface, #fff); }
+@media (max-width: 480px) { .contact-phone-input { grid-template-columns: minmax(0, 1fr); } }

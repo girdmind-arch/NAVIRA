@@ -273,6 +273,7 @@ select option { color: var(--text-primary); background: var(--surface); }
 .route-privacy { border-color: var(--border-subtle); background: var(--surface-soft); }
 .route-privacy p, .route-map-legend, .map-legend { color: var(--text-secondary); }
 .map-frame { border-color: var(--border-subtle); background: #1e1e24; }
+.map-frame.map-location-prompt { color: var(--text-secondary); background: var(--surface-soft); }
 .map-attribution-note { color: #29262d; background: rgba(255,255,255,.86); }
 .leaflet-control-zoom a { color: #34232c !important; border-color: #ebd9de !important; background: #fff7f6 !important; }
 .leaflet-control-zoom a:hover { background: #fdeef2 !important; }

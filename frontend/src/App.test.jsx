@@ -44,6 +44,7 @@ afterEach(() => {
   cleanup();
   window.location.hash = "#/home";
   window.localStorage.removeItem("navira-theme");
+  window.localStorage.removeItem("navira.routePlanner.last.v1");
   document.documentElement.dataset.theme = "rose-quartz";
 });
 
