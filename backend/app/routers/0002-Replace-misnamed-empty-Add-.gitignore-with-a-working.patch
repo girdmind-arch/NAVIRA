@@ -1,0 +1,39 @@
+From d9f397a51f88b9e55e5e70f9ab28551070385fa8 Mon Sep 17 00:00:00 2001
+From: usp <usp132224@gmail.com>
+Date: Sat, 31 Oct 2026 16:05:26 +0000
+Subject: [PATCH 2/2] Replace misnamed empty 'Add .gitignore' with a working
+ .gitignore
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01JAwktH4iLS2FMRrH69Q9E8
+---
+ .gitignore     | 8 ++++++++
+ Add .gitignore | 1 -
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+ create mode 100644 .gitignore
+ delete mode 100644 Add .gitignore
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..1fb4247
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,8 @@
++__pycache__/
++*.pyc
++node_modules/
++frontend/dist/
++frontend/.vite-cache/
++work-temp/
++*.sqlite3
++.env
+diff --git a/Add .gitignore b/Add .gitignore
+deleted file mode 100644
+index 8b13789..0000000
+--- a/Add .gitignore	
++++ /dev/null
+@@ -1 +0,0 @@
+-
+-- 
+2.43.0
+

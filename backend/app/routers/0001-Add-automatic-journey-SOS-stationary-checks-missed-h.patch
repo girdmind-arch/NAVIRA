@@ -1,0 +1,1134 @@
+From d5e6ecea64fe2afe18786cc961406cd6f476db5c Mon Sep 17 00:00:00 2001
+From: usp <usp132224@gmail.com>
+Date: Sat, 31 Oct 2026 16:03:38 +0000
+Subject: [PATCH 1/2] Add automatic journey SOS (stationary checks,
+ missed-heartbeat SOS, live location link)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01JAwktH4iLS2FMRrH69Q9E8
+---
+ backend/app/main.py                           |   2 +
+ backend/app/routers/journey_sos.py            | 361 ++++++++++++++++++
+ backend/tests/test_journey_sos.py             | 124 ++++++
+ frontend/src/App.jsx                          |   3 +
+ .../src/components/JourneySafetyMonitor.jsx   | 191 +++++++++
+ .../components/JourneySafetyMonitor.test.jsx  | 106 +++++
+ frontend/src/pages/JourneyCompanion.jsx       |   4 +
+ frontend/src/pages/PublicLiveLocation.jsx     |  41 ++
+ frontend/src/services/journeySafety.js        | 103 +++++
+ frontend/src/services/journeySafety.test.js   |  61 +++
+ 10 files changed, 996 insertions(+)
+ create mode 100644 backend/app/routers/journey_sos.py
+ create mode 100644 backend/tests/test_journey_sos.py
+ create mode 100644 frontend/src/components/JourneySafetyMonitor.jsx
+ create mode 100644 frontend/src/components/JourneySafetyMonitor.test.jsx
+ create mode 100644 frontend/src/pages/PublicLiveLocation.jsx
+ create mode 100644 frontend/src/services/journeySafety.js
+ create mode 100644 frontend/src/services/journeySafety.test.js
+
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 596bd5a..7e542d0 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -27,10 +27,12 @@ from backend.app.services.police_station_boundaries import match_route_police_st
+ from backend.app.services.synthetic_demo import load_synthetic_route_demo
+ from backend.app.routers.ml import router as ml_router
+ from backend.app.routers.safety import router as safety_router
++from backend.app.routers.journey_sos import router as journey_sos_router
+ logging.basicConfig(level=logging.INFO)
+ app=FastAPI(title="NAVIRA",version="0.1.0",description="Evidence-first Delhi NCT route comparison prototype. No route is guaranteed safe.")
+ app.include_router(ml_router)
+ app.include_router(safety_router)
++app.include_router(journey_sos_router)
+ @app.on_event("startup")
+ def startup():
+  init_db()
+diff --git a/backend/app/routers/journey_sos.py b/backend/app/routers/journey_sos.py
+new file mode 100644
+index 0000000..fe39244
+--- /dev/null
++++ b/backend/app/routers/journey_sos.py
+@@ -0,0 +1,361 @@
++"""Automatic journey SOS: heartbeats, missed-heartbeat (connectivity) detection,
++SOS escalation with a live location link, and honest notification reporting.
++
++Stationary detection and the three safety-check alerts run on the device
++(see frontend/src/services/journeySafety.js). The backend owns what the device
++cannot do while it is unreachable: noticing missed heartbeats during an
++in-progress journey and raising SOS with the last known GPS fix.
++
++Notifications are only reported as sent when a configured provider accepted
++them. Without a provider every contact is reported as ``not_configured``.
++"""
++from __future__ import annotations
++
++import base64
++import hashlib
++import json
++import logging
++import os
++import re
++import secrets
++import threading
++import time
++import urllib.parse
++import urllib.request
++from datetime import datetime, timedelta, timezone
++from uuid import uuid4
++
++from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
++from pydantic import BaseModel, Field
++
++from backend.app.core import connect
++
++log = logging.getLogger("navira.journey_sos")
++router = APIRouter(tags=["Journey automatic SOS"])
++
++SOS_MESSAGE_TEMPLATE = (
++    "SOS EMERGENCY! I am in danger and need immediate help. "
++    "My current location is: {link}. Please help me immediately!"
++)
++IST = timezone(timedelta(hours=5, minutes=30), "IST")
++LIVE_LINK_HOURS = 24
++
++SCHEMA = """
++CREATE TABLE IF NOT EXISTS journey_safety_monitors(
++ journey_id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,last_heartbeat_at TEXT NOT NULL,
++ last_latitude REAL,last_longitude REAL,last_accuracy REAL,last_location_at TEXT,app_origin TEXT,
++ FOREIGN KEY(journey_id) REFERENCES journeys(id) ON DELETE CASCADE);
++CREATE TABLE IF NOT EXISTS journey_sos_events(
++ id TEXT PRIMARY KEY,journey_id INTEGER NOT NULL,user_id INTEGER NOT NULL,reason TEXT NOT NULL,
++ status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,resolved_at TEXT,
++ live_token_hash TEXT NOT NULL UNIQUE,live_link TEXT NOT NULL,live_expires_at TEXT NOT NULL,message TEXT NOT NULL,
++ notifications_json TEXT NOT NULL,
++ FOREIGN KEY(journey_id) REFERENCES journeys(id) ON DELETE CASCADE);
++CREATE INDEX IF NOT EXISTS ix_journey_sos_active ON journey_sos_events(journey_id,status);
++"""
++
++
++def _int_env(name: str, default: int, low: int, high: int) -> int:
++    try:
++        value = int(os.getenv(name, default))
++    except ValueError:
++        return default
++    return max(low, min(high, value))
++
++
++def settings() -> dict:
++    """Runtime configuration (env-overridable)."""
++    return {
++        "stationary_minutes": 5,
++        "safety_check_alerts": 3,
++        "safety_check_window_s": _int_env("NAVIRA_SAFETY_CHECK_WINDOW_S", 180, 30, 1800),
++        "heartbeat_interval_s": _int_env("NAVIRA_HEARTBEAT_INTERVAL_S", 30, 10, 300),
++        "missed_heartbeats": _int_env("NAVIRA_MISSED_HEARTBEATS", 4, 2, 20),
++    }
++
++
++def _now() -> datetime:
++    return datetime.now(timezone.utc)
++
++
++def _ensure_schema(db) -> None:
++    db.executescript(SCHEMA)
++
++
++def _account(authorization: str | None = Header(None), navira_session: str | None = Cookie(None)):
++    # Lazy import: main.py includes this router, so import its auth helper at call time.
++    from backend.app.main import _current_user
++    return _current_user(authorization, navira_session)
++
++
++def _journey(db, journey_id: int, user_id: int):
++    row = db.execute("select * from journeys where id=? and user_id=?", (journey_id, user_id)).fetchone()
++    if row is None:
++        raise HTTPException(404, "Journey not found")
++    return row
++
++
++def _active_sos(db, journey_id: int):
++    return db.execute(
++        "select * from journey_sos_events where journey_id=? and status='active' order by created_at desc limit 1",
++        (journey_id,),
++    ).fetchone()
++
++
++# ---------------------------------------------------------------- notifications
++def _twilio_config():
++    sid, token, sender = (os.getenv(k, "").strip() for k in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"))
++    return (sid, token, sender) if sid and token and sender else None
++
++
++def _send_sms(config, to_phone: str, body: str) -> dict:
++    sid, token, sender = config
++    to = re.sub(r"[^\d+]", "", to_phone)
++    data = urllib.parse.urlencode({"To": to, "From": sender, "Body": body}).encode()
++    req = urllib.request.Request(
++        f"https://api.twilio.com/2010-04-01/Accounts/{urllib.parse.quote(sid)}/Messages.json", data=data, method="POST",
++        headers={"Authorization": "Basic " + base64.b64encode(f"{sid}:{token}".encode()).decode()},
++    )
++    try:
++        with urllib.request.urlopen(req, timeout=10) as response:
++            payload = json.loads(response.read() or b"{}")
++        # Provider acceptance is not proof of delivery; report it as such.
++        return {"status": "accepted_by_provider", "provider": "twilio", "provider_status": payload.get("status")}
++    except Exception as error:  # network errors, HTTP 4xx/5xx
++        log.warning("SOS SMS to a trusted contact failed: %s", error)
++        return {"status": "failed", "provider": "twilio", "error": "The SMS provider did not accept the message."}
++
++
++def notify_contacts(contacts: list[dict], message: str) -> list[dict]:
++    config = _twilio_config()
++    results = []
++    for contact in contacts:
++        base = {"contact_id": contact["id"], "name": contact["name"], "phone": contact["phone"]}
++        if config is None:
++            results.append({**base, "status": "not_configured",
++                            "detail": "No SMS provider is configured on the server, so NAVIRA did not send this message."})
++        else:
++            results.append({**base, **_send_sms(config, contact["phone"], message)})
++    return results
++
++
++# ---------------------------------------------------------------- SOS creation
++def _format_ist(iso_value: str | None) -> str | None:
++    if not iso_value:
++        return None
++    return datetime.fromisoformat(iso_value).astimezone(IST).strftime("%d %b %Y, %I:%M %p IST")
++
++
++def _live_link(origin: str | None, token: str) -> str:
++    base = os.getenv("NAVIRA_PUBLIC_BASE_URL", "").strip().rstrip("/") or (origin or "").rstrip("/")
++    return f"{base}/#/live/{token}"
++
++
++def build_message(link: str, *, connectivity_lost: bool, location_at: str | None, lat=None, lng=None) -> str:
++    message = SOS_MESSAGE_TEMPLATE.format(link=link)
++    if connectivity_lost:
++        if location_at and lat is not None:
++            message += (f" Last known location: {lat:.6f},{lng:.6f} recorded at {_format_ist(location_at)}."
++                        " NAVIRA lost connection with my phone; it may be out of network coverage.")
++        else:
++            message += " NAVIRA lost connection with my phone and has no GPS fix for this journey."
++    return message
++
++
++def create_sos(db, journey, reason: str, *, now: datetime | None = None) -> tuple[dict, bool]:
++    """Create (or return the existing active) SOS for a journey. Returns (sos, deduplicated)."""
++    existing = _active_sos(db, journey["id"])
++    if existing is not None:
++        return _sos_dict(db, existing), True
++    now = now or _now()
++    monitor = db.execute("select * from journey_safety_monitors where journey_id=?", (journey["id"],)).fetchone()
++    token = secrets.token_hex(32)
++    link = _live_link(monitor["app_origin"] if monitor else None, token)
++    message = build_message(
++        link, connectivity_lost=reason == "connectivity_lost",
++        location_at=monitor["last_location_at"] if monitor else None,
++        lat=monitor["last_latitude"] if monitor else None, lng=monitor["last_longitude"] if monitor else None,
++    )
++    contacts = [dict(r) for r in db.execute(
++        "select id,name,phone from trusted_contacts where user_id=? order by id", (journey["user_id"],))]
++    notifications = {
++        "contacts": notify_contacts(contacts, message),
++        "police": {"status": "unavailable",
++                   "detail": "No police-station alert integration is available, so the nearest police station was not notified."},
++    }
++    sos_id = str(uuid4())
++    db.execute(
++        "insert into journey_sos_events(id,journey_id,user_id,reason,status,created_at,live_token_hash,live_link,live_expires_at,message,notifications_json) "
++        "values(?,?,?,?,'active',?,?,?,?,?,?)",
++        (sos_id, journey["id"], journey["user_id"], reason, now.isoformat(),
++         hashlib.sha256(token.encode()).hexdigest(), link, (now + timedelta(hours=LIVE_LINK_HOURS)).isoformat(),
++         message, json.dumps(notifications)),
++    )
++    row = db.execute("select * from journey_sos_events where id=?", (sos_id,)).fetchone()
++    return _sos_dict(db, row), False
++
++
++def _sos_dict(db, row) -> dict:
++    notifications = json.loads(row["notifications_json"])
++    return {
++        "id": row["id"], "journey_id": row["journey_id"], "reason": row["reason"], "status": row["status"],
++        "created_at": row["created_at"], "resolved_at": row["resolved_at"], "message": row["message"],
++        "live_link": row["live_link"],
++        "notifications": notifications,
++        "contacts_notified": sum(1 for c in notifications["contacts"] if c["status"] == "accepted_by_provider"),
++    }
++
++
++# ---------------------------------------------------------------- watchdog
++def sweep_missed_heartbeats(now: datetime | None = None) -> list[str]:
++    """Raise SOS for in-progress journeys whose device stopped sending heartbeats."""
++    now = now or _now()
++    cfg = settings()
++    cutoff = (now - timedelta(seconds=cfg["heartbeat_interval_s"] * cfg["missed_heartbeats"])).isoformat()
++    created = []
++    with connect() as db:
++        _ensure_schema(db)
++        rows = db.execute(
++            "select j.* from journey_safety_monitors m join journeys j on j.id=m.journey_id "
++            "where j.status='in_progress' and m.last_heartbeat_at<=? "
++            "and not exists(select 1 from journey_sos_events s where s.journey_id=j.id and s.status='active')",
++            (cutoff,),
++        ).fetchall()
++        for journey in rows:
++            sos, dedup = create_sos(db, journey, "connectivity_lost", now=now)
++            if not dedup:
++                created.append(sos["id"])
++                log.warning("Missed heartbeats on journey %s; automatic SOS %s raised", journey["id"], sos["id"])
++    return created
++
++
++_watchdog_lock = threading.Lock()
++_watchdog_started = False
++
++
++def _ensure_watchdog() -> None:
++    global _watchdog_started
++    if os.getenv("NAVIRA_SOS_WATCHDOG", "1") == "0":
++        return
++    with _watchdog_lock:
++        if _watchdog_started:
++            return
++        _watchdog_started = True
++
++    def loop():
++        while True:
++            try:
++                sweep_missed_heartbeats()
++            except Exception:  # keep the watchdog alive
++                log.exception("Missed-heartbeat sweep failed")
++            time.sleep(max(5, settings()["heartbeat_interval_s"] // 2))
++
++    threading.Thread(target=loop, name="navira-sos-watchdog", daemon=True).start()
++
++
++# ---------------------------------------------------------------- API
++class HeartbeatIn(BaseModel):
++    latitude: float | None = Field(default=None, ge=-90, le=90)
++    longitude: float | None = Field(default=None, ge=-180, le=180)
++    accuracy_m: float | None = Field(default=None, ge=0, le=100000)
++    location_at: datetime | None = None
++    app_origin: str | None = Field(default=None, max_length=200)
++
++
++class SosIn(BaseModel):
++    reason: str = Field(pattern="^(user_requested_help|no_response_to_safety_checks)$")
++
++
++def _status(db, journey) -> dict:
++    sos = _active_sos(db, journey["id"])
++    return {"journey_id": journey["id"], "journey_status": journey["status"], "config": settings(),
++            "active_sos": _sos_dict(db, sos) if sos else None}
++
++
++@router.get("/api/journeys/{journey_id}/safety")
++def safety_state(journey_id: int, user=Depends(_account)):
++    with connect() as db:
++        _ensure_schema(db)
++        return _status(db, _journey(db, journey_id, user["id"]))
++
++
++@router.post("/api/journeys/{journey_id}/safety/heartbeat")
++def heartbeat(journey_id: int, body: HeartbeatIn, user=Depends(_account)):
++    now = _now()
++    origin = body.app_origin if body.app_origin and re.fullmatch(r"https?://[A-Za-z0-9.\-:\[\]]+", body.app_origin) else None
++    with connect() as db:
++        _ensure_schema(db)
++        journey = _journey(db, journey_id, user["id"])
++        if journey["status"] != "in_progress":
++            return {**_status(db, journey), "monitoring": False}
++        has_fix = body.latitude is not None and body.longitude is not None
++        location_at = (body.location_at or now).astimezone(timezone.utc)
++        location_at = min(location_at, now).isoformat()
++        db.execute(
++            "insert into journey_safety_monitors(journey_id,user_id,last_heartbeat_at,last_latitude,last_longitude,last_accuracy,last_location_at,app_origin) "
++            "values(?,?,?,?,?,?,?,?) on conflict(journey_id) do update set last_heartbeat_at=excluded.last_heartbeat_at,"
++            "last_latitude=coalesce(excluded.last_latitude,last_latitude),last_longitude=coalesce(excluded.last_longitude,last_longitude),"
++            "last_accuracy=case when excluded.last_latitude is null then last_accuracy else excluded.last_accuracy end,"
++            "last_location_at=coalesce(excluded.last_location_at,last_location_at),app_origin=coalesce(excluded.app_origin,app_origin)",
++            (journey_id, user["id"], now.isoformat(),
++             body.latitude if has_fix else None, body.longitude if has_fix else None,
++             body.accuracy_m if has_fix else None, location_at if has_fix else None, origin),
++        )
++        result = {**_status(db, journey), "monitoring": True}
++    _ensure_watchdog()
++    return result
++
++
++@router.post("/api/journeys/{journey_id}/safety/sos", status_code=201)
++def trigger_sos(journey_id: int, body: SosIn, user=Depends(_account)):
++    with connect() as db:
++        _ensure_schema(db)
++        journey = _journey(db, journey_id, user["id"])
++        if journey["status"] != "in_progress":
++            raise HTTPException(409, "Automatic SOS is only available during an in-progress journey.")
++        sos, dedup = create_sos(db, journey, body.reason)
++    return {**sos, "deduplicated": dedup}
++
++
++@router.post("/api/journeys/{journey_id}/safety/sos/resolve")
++def resolve_sos(journey_id: int, user=Depends(_account)):
++    with connect() as db:
++        _ensure_schema(db)
++        _journey(db, journey_id, user["id"])
++        cur = db.execute("update journey_sos_events set status='resolved',resolved_at=? where journey_id=? and status='active'",
++                         (_now().isoformat(), journey_id))
++        if not cur.rowcount:
++            raise HTTPException(404, "No active SOS for this journey.")
++    return {"status": "resolved",
++            "notice": "SOS marked resolved in NAVIRA. Contacts were not told automatically; let them know you are safe."}
++
++
++@router.get("/api/v1/journey-sos/live/{token}")
++def live_location(token: str):
++    """Public view for trusted contacts: latest known location for an active SOS link."""
++    if not re.fullmatch(r"[a-f0-9]{64}", token):
++        raise HTTPException(404, "This live location link is invalid or has expired.")
++    now = _now()
++    with connect() as db:
++        _ensure_schema(db)
++        row = db.execute(
++            "select s.created_at sos_at,s.status sos_status,s.live_expires_at,j.status journey_status,m.* "
++            "from journey_sos_events s join journeys j on j.id=s.journey_id "
++            "left join journey_safety_monitors m on m.journey_id=s.journey_id "
++            "where s.live_token_hash=? and s.live_expires_at>?",
++            (hashlib.sha256(token.encode()).hexdigest(), now.isoformat()),
++        ).fetchone()
++    if row is None:
++        raise HTTPException(404, "This live location link is invalid or has expired.")
++    cfg = settings()
++    hb = row["last_heartbeat_at"]
++    connected = bool(hb) and datetime.fromisoformat(hb) > now - timedelta(seconds=cfg["heartbeat_interval_s"] * cfg["missed_heartbeats"])
++    return {
++        "sos_created_at": row["sos_at"], "sos_status": row["sos_status"], "expires_at": row["live_expires_at"],
++        "journey_status": row["journey_status"],
++        "latitude": row["last_latitude"], "longitude": row["last_longitude"], "accuracy_m": row["last_accuracy"],
++        "location_recorded_at": row["last_location_at"], "last_contact_at": hb,
++        "connection": "live" if connected and row["journey_status"] == "in_progress" else "lost" if row["journey_status"] == "in_progress" else "journey_ended",
++        "notice": ("Location updates while the phone has GPS and connectivity. If the connection is lost, this shows the "
++                   "last known location and when it was recorded."),
++    }
+diff --git a/backend/tests/test_journey_sos.py b/backend/tests/test_journey_sos.py
+new file mode 100644
+index 0000000..408fb07
+--- /dev/null
++++ b/backend/tests/test_journey_sos.py
+@@ -0,0 +1,124 @@
++from datetime import datetime, timedelta, timezone
++
++import pytest
++from fastapi.testclient import TestClient
++
++from backend.app import core, main
++from backend.app.main import app
++from backend.app.routers import journey_sos
++
++ROUTE = {"id": "osrm-test", "distance_m": 4200, "duration_s": 900, "geometry": {"coordinates": [[77.2, 28.6], [77.3, 28.7]]}}
++EXPECTED_PREFIX = "SOS EMERGENCY! I am in danger and need immediate help. My current location is: "
++
++
++@pytest.fixture
++def client(monkeypatch, tmp_path):
++    monkeypatch.setenv("NAVIRA_SOS_WATCHDOG", "0")
++    for key in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER", "NAVIRA_PUBLIC_BASE_URL"):
++        monkeypatch.delenv(key, raising=False)
++    monkeypatch.setattr(core, "DB_PATH", tmp_path / "test.sqlite3")
++    core.init_db()
++    monkeypatch.setattr(main, "seed_delhi_city_dataset", lambda: 0)
++    monkeypatch.setattr(main, "seed_pilot_network", lambda: {})
++    with TestClient(app) as test_client:
++        assert test_client.post("/api/auth/register", json={"email": "u@example.com", "password": "strong-password", "name": "U"}).status_code == 201
++        assert test_client.post("/api/contacts", json={"name": "Mum", "phone": "+91 98765 43210"}).status_code == 201
++        yield test_client
++
++
++def start_journey(client):
++    journey_id = client.post("/api/journeys/plan", json={"origin": "A", "destination": "B", "route_id": "osrm-test", "route": ROUTE}).json()["id"]
++    assert client.post(f"/api/journeys/{journey_id}/start").status_code == 200
++    return journey_id
++
++
++def beat(client, journey_id, **body):
++    response = client.post(f"/api/journeys/{journey_id}/safety/heartbeat", json={"app_origin": "https://navira.test", **body})
++    assert response.status_code == 200
++    return response.json()
++
++
++def test_help_request_sends_exact_message_with_live_link_and_reports_missing_integrations(client):
++    journey_id = start_journey(client)
++    beat(client, journey_id, latitude=28.61, longitude=77.21, accuracy_m=12)
++    response = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"})
++    assert response.status_code == 201
++    sos = response.json()
++    assert sos["live_link"].startswith("https://navira.test/#/live/")
++    assert sos["message"] == f"{EXPECTED_PREFIX}{sos['live_link']}. Please help me immediately!"
++    contact = sos["notifications"]["contacts"][0]
++    assert contact["name"] == "Mum" and contact["status"] == "not_configured"
++    assert sos["contacts_notified"] == 0
++    assert sos["notifications"]["police"]["status"] == "unavailable"
++
++
++def test_duplicate_sos_is_deduplicated_and_resolve_allows_a_new_one(client):
++    journey_id = start_journey(client)
++    first = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "no_response_to_safety_checks"}).json()
++    second = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).json()
++    assert second["deduplicated"] is True and second["id"] == first["id"]
++    assert client.post(f"/api/journeys/{journey_id}/safety/sos/resolve").status_code == 200
++    third = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).json()
++    assert third["deduplicated"] is False and third["id"] != first["id"]
++
++
++def test_live_link_follows_movement(client):
++    journey_id = start_journey(client)
++    beat(client, journey_id, latitude=28.61, longitude=77.21, accuracy_m=10)
++    token = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).json()["live_link"].rsplit("/", 1)[1]
++    assert client.get(f"/api/v1/journey-sos/live/{token}").json()["latitude"] == 28.61
++    beat(client, journey_id, latitude=28.62, longitude=77.22, accuracy_m=10)
++    live = client.get(f"/api/v1/journey-sos/live/{token}").json()
++    assert (live["latitude"], live["longitude"], live["connection"]) == (28.62, 77.22, "live")
++    beat(client, journey_id)  # heartbeat without GPS keeps the last known fix
++    assert client.get(f"/api/v1/journey-sos/live/{token}").json()["latitude"] == 28.62
++    assert client.get("/api/v1/journey-sos/live/" + "0" * 64).status_code == 404
++
++
++def test_missed_heartbeats_trigger_one_sos_with_last_known_location_and_no_switched_off_claim(client):
++    journey_id = start_journey(client)
++    fix_time = datetime.now(timezone.utc) - timedelta(seconds=5)
++    beat(client, journey_id, latitude=28.6139, longitude=77.209, accuracy_m=15, location_at=fix_time.isoformat())
++    assert journey_sos.sweep_missed_heartbeats() == []  # still within the allowed window
++    later = datetime.now(timezone.utc) + timedelta(minutes=10)
++    created = journey_sos.sweep_missed_heartbeats(now=later)
++    assert len(created) == 1
++    assert journey_sos.sweep_missed_heartbeats(now=later + timedelta(minutes=1)) == []  # no duplicates
++    sos = client.get(f"/api/journeys/{journey_id}/safety").json()["active_sos"]
++    assert sos["reason"] == "connectivity_lost"
++    assert sos["message"].startswith(EXPECTED_PREFIX)
++    assert "28.613900,77.209000" in sos["message"] and "IST" in sos["message"]
++    assert "switched off" not in sos["message"].lower() and "lost connection" in sos["message"]
++
++
++def test_monitoring_stops_when_journey_ends(client):
++    journey_id = start_journey(client)
++    beat(client, journey_id, latitude=28.61, longitude=77.21)
++    assert client.post(f"/api/journeys/{journey_id}/complete").status_code == 200
++    assert beat(client, journey_id)["monitoring"] is False
++    assert journey_sos.sweep_missed_heartbeats(now=datetime.now(timezone.utc) + timedelta(hours=1)) == []
++    assert client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).status_code == 409
++
++
++def test_journeys_without_heartbeats_are_not_flagged(client):
++    start_journey(client)
++    assert journey_sos.sweep_missed_heartbeats(now=datetime.now(timezone.utc) + timedelta(hours=1)) == []
++
++
++def test_provider_acceptance_is_reported_only_when_configured(client, monkeypatch):
++    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC1")
++    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "t")
++    monkeypatch.setenv("TWILIO_FROM_NUMBER", "+10000000000")
++    sent = []
++    monkeypatch.setattr(journey_sos, "_send_sms", lambda cfg, to, body: sent.append((to, body)) or {"status": "accepted_by_provider", "provider": "twilio"})
++    journey_id = start_journey(client)
++    sos = client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).json()
++    assert sos["contacts_notified"] == 1 and sent[0][1] == sos["message"]
++
++
++def test_other_users_cannot_access_journey_safety(client):
++    journey_id = start_journey(client)
++    client.post("/api/auth/logout")
++    assert client.post(f"/api/journeys/{journey_id}/safety/heartbeat", json={}).status_code == 401
++    client.post("/api/auth/register", json={"email": "x@example.com", "password": "strong-password", "name": "X"})
++    assert client.post(f"/api/journeys/{journey_id}/safety/sos", json={"reason": "user_requested_help"}).status_code == 404
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 57a2654..dbd42e7 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -9,6 +9,7 @@ import JourneyCompanion from "./pages/JourneyCompanion";
+ import ProfileSettings from "./pages/ProfileSettings";
+ import NearbyFacilities from "./pages/NearbyFacilities";
+ import PublicLocationShare from "./pages/PublicLocationShare";
++import PublicLiveLocation from "./pages/PublicLiveLocation";
+ import Onboarding from "./pages/Onboarding";
+ import "./App.css";
+ 
+@@ -140,6 +141,8 @@ export default function App() {
+     </div>}
+   </div>;
+   if (shareToken) return <PublicLocationShare token={shareToken}/>;
++  const liveToken = window.location.hash.match(/^#\/live\/([a-f0-9]{64})$/)?.[1];
++  if (liveToken) return <PublicLiveLocation token={liveToken}/>;
+   if (authChecking) return <div className="landing-shell"><header className="landing-header"><a className="brand landing-brand" href="#/home"><BrandMark size={42}/><span className="brand-copy"><strong>NAVIRA</strong><small>SAFER STEPS. BRIGHTER TOMORROWS.</small></span></a>{themePicker}</header><main className="landing-loading" role="status">Restoring your NAVIRA session…</main></div>;
+   if (page === "demo") return syntheticDemoEnabled && SyntheticRouteDemo
+     ? <Suspense fallback={<main className="synthetic-demo-loading" role="status">Loading local synthetic demo…</main>}><SyntheticRouteDemo onBack={() => navigate("home")}/></Suspense>
+diff --git a/frontend/src/components/JourneySafetyMonitor.jsx b/frontend/src/components/JourneySafetyMonitor.jsx
+new file mode 100644
+index 0000000..26e80cc
+--- /dev/null
++++ b/frontend/src/components/JourneySafetyMonitor.jsx
+@@ -0,0 +1,191 @@
++import { useCallback, useEffect, useRef, useState } from "react";
++import { Icon, Notice } from "./ui";
++import { contactsApi, safetyApi } from "../services/api";
++import { DEFAULT_SAFETY_CONFIG, createStationaryDetector, escalationStep, journeySafetyApi, offlineSosMessage } from "../services/journeySafety";
++
++const TICK_MS = 1000;
++
++function statusLabel(status) {
++  if (status === "accepted_by_provider") return "Sent to SMS provider";
++  if (status === "failed") return "Sending failed";
++  if (status === "server_unreachable") return "Not sent: NAVIRA server unreachable";
++  return "Not sent automatically (no SMS service configured)";
++}
++
++/**
++ * Runs only while a journey is in progress: sends heartbeats, detects 5 minutes without movement,
++ * shows up to three safety-check alerts, and raises SOS on "I Need Help" or no response.
++ */
++export default function JourneySafetyMonitor({ journey, fix }) {
++  const [config, setConfig] = useState(DEFAULT_SAFETY_CONFIG);
++  const [phase, setPhase] = useState("monitoring"); // monitoring | checking | sos
++  const [alertNumber, setAlertNumber] = useState(0);
++  const [sos, setSos] = useState(null);
++  const [connectionIssue, setConnectionIssue] = useState("");
++  const [sosError, setSosError] = useState("");
++  const [savedContacts, setSavedContacts] = useState([]);
++  const sosRef = useRef(null);
++  const [stationaryDetector] = useState(() => createStationaryDetector({ durationMs: DEFAULT_SAFETY_CONFIG.stationary_minutes * 60000 }));
++  const fixRef = useRef(null);
++  const phaseRef = useRef("monitoring");
++  const checkStartedAt = useRef(0);
++  const sosInFlight = useRef(false);
++  const lastFreshRequest = useRef(0);
++  const lastSosBeat = useRef(0);
++  const journeyId = journey.id;
++
++  const enterPhase = useCallback((next) => { phaseRef.current = next; setPhase(next); }, []);
++  const storeSos = useCallback((value) => { sosRef.current = value; setSos(value); }, []);
++  const pendingSosReason = useRef(null);
++
++  const deliverSos = useCallback(async (reason) => {
++    if (sosInFlight.current || sosRef.current) return;
++    sosInFlight.current = true;
++    pendingSosReason.current = reason;
++    try {
++      storeSos(await journeySafetyApi.sos(journeyId, reason));
++      pendingSosReason.current = null;
++      setSosError("");
++    } catch (error) {
++      setSosError(`NAVIRA could not reach its server to alert your contacts (${error.message}). Text your contacts below or call 112.`);
++    } finally {
++      sosInFlight.current = false;
++    }
++  }, [journeyId, storeSos]);
++
++  const sendHeartbeat = useCallback(async () => {
++    const latest = fixRef.current;
++    try {
++      const result = await journeySafetyApi.heartbeat(journeyId, {
++        ...(latest ? { latitude: latest.latitude, longitude: latest.longitude, accuracy_m: latest.accuracy, location_at: new Date(latest.timestamp).toISOString() } : {}),
++        app_origin: window.location.origin,
++      });
++      setConnectionIssue("");
++      if (result?.config) setConfig((current) => ({ ...current, ...result.config }));
++      if (result?.active_sos) {
++        // Raised by the server (for example after missed heartbeats), another tab, or this one.
++        if (sosRef.current?.id !== result.active_sos.id) storeSos(result.active_sos);
++        if (phaseRef.current !== "sos") enterPhase("sos");
++      } else if (phaseRef.current === "sos" && !sosRef.current) {
++        if (pendingSosReason.current) deliverSos(pendingSosReason.current); // SOS started while offline: deliver it now
++      }
++    } catch {
++      setConnectionIssue("NAVIRA cannot reach its server. If the connection stays down during this journey, NAVIRA will alert your trusted contacts with your last known location and its time.");
++    }
++  }, [journeyId, enterPhase, storeSos, deliverSos]);
++
++  const triggerSOS = useCallback((reason) => {
++    if (sosInFlight.current || sosRef.current || phaseRef.current === "sos") return;
++    enterPhase("sos");
++    try { safetyApi.recordSOS().catch(() => { /* the journey SOS is the primary record */ }); } catch { /* existing SOS record is best effort */ }
++    deliverSos(reason);
++  }, [enterPhase, deliverSos]);
++
++  // Keep trusted contacts on hand so SMS drafts work even if the server becomes unreachable.
++  useEffect(() => {
++    let active = true;
++    try {
++      contactsApi.list().then((items) => { if (active && Array.isArray(items)) setSavedContacts(items); }).catch(() => {});
++    } catch { /* contacts stay unavailable offline */ }
++    return () => { active = false; };
++  }, []);
++
++  // Feed GPS fixes into the stationary detector; during SOS push the latest position promptly.
++  useEffect(() => {
++    if (!fix) return;
++    fixRef.current = fix;
++    stationaryDetector.update(fix);
++    if (phaseRef.current === "sos" && fix.timestamp - lastSosBeat.current >= 10000) {
++      lastSosBeat.current = fix.timestamp;
++      sendHeartbeat();
++    }
++  }, [fix, sendHeartbeat, stationaryDetector]);
++
++  // Heartbeats to the backend while the journey is active.
++  useEffect(() => {
++    const first = setTimeout(sendHeartbeat, 0);
++    const timer = setInterval(sendHeartbeat, config.heartbeat_interval_s * 1000);
++    return () => { clearTimeout(first); clearInterval(timer); };
++  }, [sendHeartbeat, config.heartbeat_interval_s]);
++
++  // Stationary check and alert escalation clock.
++  useEffect(() => {
++    const timer = setInterval(() => {
++      const now = Date.now();
++      if (phaseRef.current === "monitoring") {
++        const status = stationaryDetector.status(now);
++        if (status.needsFreshFix && navigator.geolocation && now - lastFreshRequest.current > 60000) {
++          lastFreshRequest.current = now;
++          navigator.geolocation.getCurrentPosition(({ coords }) => {
++            const fresh = { latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, timestamp: Date.now() };
++            fixRef.current = fresh;
++            stationaryDetector.update(fresh);
++          }, () => { /* without a fresh fix we cannot confirm the user is stationary */ }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
++        }
++        if (status.stationary) {
++          checkStartedAt.current = now;
++          setAlertNumber(1);
++          enterPhase("checking");
++          navigator.vibrate?.([400, 200, 400]);
++        }
++      } else if (phaseRef.current === "checking") {
++        const step = escalationStep(now - checkStartedAt.current, config.safety_check_window_s * 1000, config.safety_check_alerts);
++        if (step.sosDue) triggerSOS("no_response_to_safety_checks");
++        else setAlertNumber((current) => {
++          if (step.alert > current) navigator.vibrate?.([400, 200, 400]);
++          return Math.max(current, step.alert);
++        });
++      }
++    }, TICK_MS);
++    return () => clearInterval(timer);
++  }, [config.safety_check_window_s, config.safety_check_alerts, enterPhase, triggerSOS, stationaryDetector]);
++
++  function confirmSafe() {
++    stationaryDetector.reset(Date.now(), fixRef.current && { ...fixRef.current, timestamp: Date.now() });
++    setAlertNumber(0);
++    enterPhase("monitoring");
++  }
++
++  function needHelp() {
++    triggerSOS("user_requested_help");
++    window.location.href = "tel:112";
++  }
++
++  async function resolveSOS() {
++    try {
++      await journeySafetyApi.resolve(journeyId);
++      storeSos(null);
++      pendingSosReason.current = null;
++      stationaryDetector.reset(Date.now(), fixRef.current && { ...fixRef.current, timestamp: Date.now() });
++      enterPhase("monitoring");
++    } catch (error) {
++      setSosError(`Could not mark the SOS resolved: ${error.message}`);
++    }
++  }
++
++  const message = sos?.message || offlineSosMessage(fix);
++  const contacts = sos?.notifications?.contacts
++    || savedContacts.map((contact) => ({ contact_id: contact.id, name: contact.name, phone: contact.phone, status: "server_unreachable" }));
++
++  return <>
++    {connectionIssue && phase !== "sos" && <Notice kind="warning">{connectionIssue}</Notice>}
++    {phase === "checking" && <div className="modal-backdrop" role="presentation"><section className="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="safety-check-title">
++      <span className="confirm-icon"><Icon name="bell" size={25}/></span>
++      <p className="eyebrow">SAFETY CHECK {alertNumber} OF {config.safety_check_alerts}</p>
++      <h2 id="safety-check-title">You've been stationary for 5 minutes. Are you safe?</h2>
++      <p>If you do not respond to {config.safety_check_alerts} safety checks, NAVIRA will automatically start SOS and alert your trusted contacts.</p>
++      <div className="modal-actions"><button className="button button--secondary" type="button" onClick={confirmSafe}>I'm Safe</button><button className="button button--sos" type="button" onClick={needHelp}>I Need Help</button></div>
++    </section></div>}
++    {phase === "sos" && <section className="panel emergency-section" role="alert" aria-labelledby="auto-sos-title">
++      <div className="emergency-heading"><div><p className="eyebrow">SOS ACTIVE</p><h2 id="auto-sos-title">{sos?.reason === "connectivity_lost" ? "SOS started after NAVIRA lost connection with this phone" : "SOS started"}</h2><p>{message}</p></div><span className="emergency-badge"><Icon name="shield" size={18}/> SOS</span></div>
++      {sosError && <Notice kind="warning">{sosError}</Notice>}
++      {!sos && !sosError && <p className="muted-copy" role="status">Starting SOS…</p>}
++      {sos && <p className="form-helper">Live location link (updates while this phone has GPS and connectivity): <a href={sos.live_link} target="_blank" rel="noreferrer">{sos.live_link}</a></p>}
++      {(sos || sosError) && (contacts.length === 0
++        ? <p className="form-helper">No trusted contacts are saved, so nobody could be alerted. Add contacts in Profile &amp; Settings.</p>
++        : <div className="safety-contact-list">{contacts.map((contact) => <div className="safety-contact-row" key={contact.contact_id}><span><strong>{contact.name}</strong><small>{statusLabel(contact.status)}</small></span>{contact.status !== "accepted_by_provider" && <a className="button button--secondary" href={`sms:${encodeURIComponent(contact.phone)}?body=${encodeURIComponent(message)}`}>Text {contact.name}</a>}</div>)}</div>)}
++      {sos?.notifications?.police && <p className="form-helper">{sos.notifications.police.detail}</p>}
++      <div className="modal-actions"><a className="button button--sos" href="tel:112"><Icon name="phone" size={16}/> Call 112</a>{sos && <button className="button button--secondary" type="button" onClick={resolveSOS}>I'm safe now — end SOS</button>}</div>
++    </section>}
++  </>;
++}
+diff --git a/frontend/src/components/JourneySafetyMonitor.test.jsx b/frontend/src/components/JourneySafetyMonitor.test.jsx
+new file mode 100644
+index 0000000..c42c74a
+--- /dev/null
++++ b/frontend/src/components/JourneySafetyMonitor.test.jsx
+@@ -0,0 +1,106 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
++import JourneySafetyMonitor from "./JourneySafetyMonitor.jsx";
++import { journeySafetyApi } from "../services/journeySafety";
++import { safetyApi } from "../services/api";
++
++vi.mock("../services/api", () => ({
++  safetyApi: { recordSOS: vi.fn(() => Promise.resolve({})) },
++  contactsApi: { list: vi.fn(() => Promise.resolve([{ id: 1, name: "Mum", phone: "+919876543210" }])) },
++}));
++
++vi.mock("../services/journeySafety", async (importOriginal) => {
++  const actual = await importOriginal();
++  return {
++    ...actual,
++    journeySafetyApi: {
++      heartbeat: vi.fn(() => Promise.resolve({ config: { ...actual.DEFAULT_SAFETY_CONFIG, safety_check_window_s: 90 }, active_sos: null })),
++      sos: vi.fn(() => Promise.resolve({
++        id: "s1", reason: "no_response_to_safety_checks", live_link: "https://navira.test/#/live/abc",
++        message: "SOS EMERGENCY! I am in danger and need immediate help. My current location is: https://navira.test/#/live/abc. Please help me immediately!",
++        notifications: { contacts: [{ contact_id: 1, name: "Mum", phone: "+919876543210", status: "not_configured" }], police: { status: "unavailable", detail: "No police-station alert integration is available, so the nearest police station was not notified." } },
++      })),
++      resolve: vi.fn(() => Promise.resolve({ status: "resolved" })),
++    },
++  };
++});
++
++const journey = { id: 9, status: "in_progress" };
++const fixAt = (time) => ({ latitude: 28.6139, longitude: 77.209, accuracy: 15, timestamp: time });
++
++async function advance(ms) {
++  await act(async () => { vi.advanceTimersByTime(ms); });
++}
++
++beforeEach(() => {
++  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
++  vi.setSystemTime(new Date("2026-10-31T10:00:00Z"));
++  Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: vi.fn() } });
++});
++
++afterEach(() => {
++  cleanup();
++  vi.useRealTimers();
++  vi.clearAllMocks();
++});
++
++function renderWithFixes() {
++  const view = render(<JourneySafetyMonitor journey={journey} fix={fixAt(Date.now())}/>);
++  return {
++    ...view,
++    stayStill: async (minutes) => {
++      for (let i = 0; i < minutes * 4; i += 1) {
++        await advance(15000);
++        view.rerender(<JourneySafetyMonitor journey={journey} fix={fixAt(Date.now())}/>);
++      }
++    },
++  };
++}
++
++describe("JourneySafetyMonitor", () => {
++  it("asks after 5 stationary minutes, sends 3 alerts, then triggers SOS once with honest statuses", async () => {
++    const { stayStill } = renderWithFixes();
++    await stayStill(4.75);
++    expect(screen.queryByRole("alertdialog")).toBeNull();
++    await stayStill(0.5);
++    expect(screen.getByText("You've been stationary for 5 minutes. Are you safe?")).toBeTruthy();
++    expect(screen.getByText(/SAFETY CHECK 1 OF 3/)).toBeTruthy();
++    await advance(30000);
++    expect(screen.getByText(/SAFETY CHECK 2 OF 3/)).toBeTruthy();
++    await advance(30000);
++    expect(screen.getByText(/SAFETY CHECK 3 OF 3/)).toBeTruthy();
++    await advance(31000);
++    expect(journeySafetyApi.sos).toHaveBeenCalledTimes(1);
++    expect(journeySafetyApi.sos).toHaveBeenCalledWith(9, "no_response_to_safety_checks");
++    expect(safetyApi.recordSOS).toHaveBeenCalledTimes(1);
++    expect(screen.getByText(/Not sent automatically/)).toBeTruthy();
++    expect(screen.getByText(/nearest police station was not notified/)).toBeTruthy();
++    await advance(120000);
++    expect(journeySafetyApi.sos).toHaveBeenCalledTimes(1);
++  });
++
++  it("cancels escalation when the user is safe and restarts the timer", async () => {
++    const { stayStill } = renderWithFixes();
++    await stayStill(5.25);
++    fireEvent.click(screen.getByText("I'm Safe"));
++    expect(screen.queryByRole("alertdialog")).toBeNull();
++    await advance(200000);
++    expect(journeySafetyApi.sos).not.toHaveBeenCalled();
++  });
++
++  it("triggers SOS immediately on I Need Help", async () => {
++    const { stayStill } = renderWithFixes();
++    await stayStill(5.25);
++    fireEvent.click(screen.getByText("I Need Help"));
++    await advance(0);
++    expect(journeySafetyApi.sos).toHaveBeenCalledWith(9, "user_requested_help");
++  });
++
++  it("shows an SOS raised by the server after missed heartbeats", async () => {
++    journeySafetyApi.heartbeat.mockResolvedValueOnce({ active_sos: { id: "srv", reason: "connectivity_lost", message: "SOS EMERGENCY! ... Last known location", live_link: "https://navira.test/#/live/x", notifications: { contacts: [], police: { detail: "No police integration." } } } });
++    render(<JourneySafetyMonitor journey={journey} fix={null}/>);
++    await advance(0);
++    expect(screen.getByText(/lost connection with this phone/)).toBeTruthy();
++    expect(screen.queryByText(/switched off/i)).toBeNull();
++  });
++});
+diff --git a/frontend/src/pages/JourneyCompanion.jsx b/frontend/src/pages/JourneyCompanion.jsx
+index 1588ce4..d4307e0 100644
+--- a/frontend/src/pages/JourneyCompanion.jsx
++++ b/frontend/src/pages/JourneyCompanion.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { PageHeading, Notice, Icon } from "../components/ui";
+ import MapView from "../components/MapView";
++import JourneySafetyMonitor from "../components/JourneySafetyMonitor";
+ import { journeysApi } from "../services/api";
+ 
+ function duration(value) {
+@@ -57,6 +58,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
+   const [position, setPosition] = useState(null);
+   const [track, setTrack] = useState([]);
+   const [clock, setClock] = useState(0);
++  const [safetyFix, setSafetyFix] = useState(null);
+   const trackRef = useRef([]);
+   const arrivalFixes = useRef(0);
+   const lastArrivalFixAt = useRef(0);
+@@ -103,6 +105,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
+     const watch = navigator.geolocation.watchPosition(({ coords }) => {
+       setLocationIssue("");
+       recordPosition(coords, journey.id, trackRef, setPosition, setTrack, setError);
++      setSafetyFix({ latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, timestamp: Date.now() });
+       const destination = journey.route?.geometry?.coordinates?.at(-1);
+       const now = Date.now();
+       if (!destination || coords.accuracy > MAX_ARRIVAL_ACCURACY_METERS) {
+@@ -191,6 +194,7 @@ export default function JourneyCompanion({ onNavigate, authenticated }) {
+         </section>
+       </div>
+     </>}
++    {authenticated && journey?.status === "in_progress" && <JourneySafetyMonitor key={journey.id} journey={journey} fix={safetyFix}/>}
+     {error && <Notice kind="warning">{error}</Notice>}
+     <div className="journey-shortcuts"><button className="shortcut-card" onClick={() => onNavigate("safety")}><span className="quick-icon tone-pink"><Icon name="shield" size={19}/></span><span><strong>Emergency SOS & sharing</strong><small>Manage a private location share.</small></span><Icon name="arrow" size={17}/></button><button className="shortcut-card" onClick={() => onNavigate("routes")}><span className="quick-icon tone-blue"><Icon name="route" size={19}/></span><span><strong>Route Planner</strong><small>Review or replace your saved route.</small></span><Icon name="arrow" size={17}/></button></div>
+   </>;
+diff --git a/frontend/src/pages/PublicLiveLocation.jsx b/frontend/src/pages/PublicLiveLocation.jsx
+new file mode 100644
+index 0000000..abf45fe
+--- /dev/null
++++ b/frontend/src/pages/PublicLiveLocation.jsx
+@@ -0,0 +1,41 @@
++import { useEffect, useState } from "react";
++import { journeySafetyApi } from "../services/journeySafety";
++
++const REFRESH_MS = 15000;
++
++export default function PublicLiveLocation({ token }) {
++  const [live, setLive] = useState(null);
++  const [error, setError] = useState("");
++
++  useEffect(() => {
++    let cancelled = false;
++    const load = () => journeySafetyApi.live(token)
++      .then((result) => { if (!cancelled) { setLive(result); setError(""); } })
++      .catch((requestError) => { if (!cancelled) setError(requestError.message); });
++    load();
++    const timer = setInterval(load, REFRESH_MS);
++    return () => { cancelled = true; clearInterval(timer); };
++  }, [token]);
++
++  const hasFix = live && live.latitude != null && live.longitude != null;
++  const mapUrl = hasFix
++    ? `https://www.openstreetmap.org/?mlat=${live.latitude}&mlon=${live.longitude}#map=17/${live.latitude}/${live.longitude}`
++    : "";
++
++  return <main className="public-share-page"><section className="public-share-card">
++    <p className="eyebrow">NAVIRA · SOS LIVE LOCATION</p>
++    <h1>{error && !live ? "Live location unavailable" : live ? "SOS emergency location" : "Loading location…"}</h1>
++    {error && <p>{error}</p>}
++    {live && <>
++      <p>SOS started {new Date(live.sos_created_at).toLocaleString()}.</p>
++      {live.connection === "live" && <p>The phone is connected. This page refreshes every 15 seconds with the latest GPS position.</p>}
++      {live.connection === "lost" && <p>NAVIRA has lost connection with the phone since {live.last_contact_at ? new Date(live.last_contact_at).toLocaleString() : "the SOS started"}. It may be out of network coverage. Showing the last known location.</p>}
++      {live.connection === "journey_ended" && <p>The journey has ended, so location updates have stopped. Showing the last known location.</p>}
++      {hasFix ? <>
++        <p>Location recorded {new Date(live.location_recorded_at).toLocaleString()}{live.accuracy_m != null ? ` · accuracy about ${Math.round(live.accuracy_m)} m` : ""}.</p>
++        <a className="button button--primary" href={mapUrl} target="_blank" rel="noreferrer">Open location map</a>
++      </> : <p>No GPS position has been received from the phone yet.</p>}
++    </>}
++    <p>If someone may be in immediate danger in India, call 112.</p>
++  </section></main>;
++}
+diff --git a/frontend/src/services/journeySafety.js b/frontend/src/services/journeySafety.js
+new file mode 100644
+index 0000000..a3c2699
+--- /dev/null
++++ b/frontend/src/services/journeySafety.js
+@@ -0,0 +1,103 @@
++import { api, request } from "./api";
++
++export const SOS_MESSAGE_TEMPLATE = "SOS EMERGENCY! I am in danger and need immediate help. My current location is: [Live Location Link]. Please help me immediately!";
++
++export const DEFAULT_SAFETY_CONFIG = {
++  stationary_minutes: 5,
++  safety_check_alerts: 3,
++  safety_check_window_s: 180,
++  heartbeat_interval_s: 30,
++  missed_heartbeats: 4,
++};
++
++export const journeySafetyApi = {
++  state: (journeyId) => request(`/api/journeys/${journeyId}/safety`),
++  heartbeat: (journeyId, body) => request(`/api/journeys/${journeyId}/safety/heartbeat`, "POST", body, { keepalive: true }),
++  sos: (journeyId, reason) => request(`/api/journeys/${journeyId}/safety/sos`, "POST", { reason }, { keepalive: true }),
++  resolve: (journeyId) => request(`/api/journeys/${journeyId}/safety/sos/resolve`, "POST"),
++  live: (token) => api(`/api/v1/journey-sos/live/${encodeURIComponent(token)}`, { auth: false }),
++};
++
++export function sosMessage(link) {
++  return SOS_MESSAGE_TEMPLATE.replace("[Live Location Link]", link);
++}
++
++/** Message used only when NAVIRA's server cannot be reached; SMS drafts can still go out over the cellular network. */
++export function offlineSosMessage(fix) {
++  if (!fix) return sosMessage("unavailable (no GPS fix yet)");
++  const link = `https://www.openstreetmap.org/?mlat=${fix.latitude.toFixed(6)}&mlon=${fix.longitude.toFixed(6)}#map=17/${fix.latitude.toFixed(6)}/${fix.longitude.toFixed(6)}`;
++  return `${sosMessage(link)} Last known location recorded at ${new Date(fix.timestamp).toLocaleString()}.`;
++}
++
++export function distanceMeters(a, b) {
++  const radians = (degrees) => degrees * Math.PI / 180;
++  const dLat = radians(b.latitude - a.latitude);
++  const dLon = radians(b.longitude - a.longitude);
++  const h = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(dLon / 2) ** 2;
++  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
++}
++
++/**
++ * GPS-noise tolerant stationary detector.
++ * - Fixes worse than maxAccuracyM are ignored (they neither prove movement nor stillness).
++ * - Movement needs `confirmFixes` consecutive fixes outside an accuracy-scaled radius around the anchor,
++ *   so a single GPS jump cannot reset or fake the timer.
++ * - "Stationary" is only reported with a fresh accurate fix; with stale GPS the caller should request one.
++ */
++export function createStationaryDetector({
++  durationMs = 5 * 60 * 1000,
++  maxAccuracyM = 100,
++  minMoveM = 30,
++  maxMoveM = 100,
++  confirmFixes = 2,
++  freshFixMs = 90 * 1000,
++} = {}) {
++  let anchor = null;
++  let anchorAt = 0;
++  let lastGoodAt = 0;
++  let pending = 0;
++
++  function threshold(fix) {
++    return Math.min(maxMoveM, Math.max(minMoveM, 1.5 * ((anchor.accuracy || 0) + (fix.accuracy || 0))));
++  }
++
++  return {
++    update(fix) {
++      if (!fix || !Number.isFinite(fix.latitude) || !Number.isFinite(fix.longitude)) return "ignored";
++      if (!Number.isFinite(fix.accuracy) || fix.accuracy > maxAccuracyM) return "ignored";
++      lastGoodAt = fix.timestamp;
++      if (!anchor) {
++        anchor = fix; anchorAt = fix.timestamp; pending = 0;
++        return "anchored";
++      }
++      if (distanceMeters(anchor, fix) > threshold(fix)) {
++        pending += 1;
++        if (pending >= confirmFixes) {
++          anchor = fix; anchorAt = fix.timestamp; pending = 0;
++          return "moved";
++        }
++        return "possible-movement";
++      }
++      pending = 0;
++      if (fix.accuracy < anchor.accuracy) anchor = { ...fix }; // refine position, keep the timer
++      return "still";
++    },
++    status(now) {
++      const stillForMs = anchor ? Math.max(0, now - anchorAt) : 0;
++      const due = Boolean(anchor) && stillForMs >= durationMs;
++      const fresh = now - lastGoodAt <= freshFixMs;
++      return { stillForMs, stationary: due && fresh, needsFreshFix: due && !fresh };
++    },
++    reset(now, fix = null) {
++      anchor = fix && Number.isFinite(fix.accuracy) && fix.accuracy <= maxAccuracyM ? { ...fix } : null;
++      anchorAt = now; pending = 0;
++      if (anchor) lastGoodAt = fix.timestamp;
++    },
++  };
++}
++
++/** Pure escalation step: which safety-check alert (1..n) is due and whether SOS is due. */
++export function escalationStep(elapsedMs, windowMs, alerts = 3) {
++  if (elapsedMs >= windowMs) return { alert: alerts, sosDue: true };
++  return { alert: Math.min(alerts, Math.floor(elapsedMs / (windowMs / alerts)) + 1), sosDue: false };
++}
+diff --git a/frontend/src/services/journeySafety.test.js b/frontend/src/services/journeySafety.test.js
+new file mode 100644
+index 0000000..8f05aa4
+--- /dev/null
++++ b/frontend/src/services/journeySafety.test.js
+@@ -0,0 +1,61 @@
++import { describe, expect, it } from "vitest";
++import { createStationaryDetector, escalationStep, offlineSosMessage, sosMessage } from "./journeySafety";
++
++const MIN = 60000;
++const base = { latitude: 28.6139, longitude: 77.209 };
++const offset = (meters) => ({ ...base, latitude: base.latitude + meters / 111320 });
++
++describe("stationary detector", () => {
++  it("reports stationary after 5 minutes of GPS jitter within the accuracy radius", () => {
++    const detector = createStationaryDetector();
++    for (let t = 0; t <= 5 * MIN; t += 15000) {
++      detector.update({ ...offset((t / 15000) % 2 ? 18 : -12), accuracy: 20, timestamp: t });
++    }
++    expect(detector.status(5 * MIN).stationary).toBe(true);
++  });
++
++  it("does not let a single GPS jump reset the timer, but confirmed movement does", () => {
++    const detector = createStationaryDetector();
++    detector.update({ ...base, accuracy: 10, timestamp: 0 });
++    expect(detector.update({ ...offset(400), accuracy: 10, timestamp: 2 * MIN })).toBe("possible-movement");
++    expect(detector.update({ ...base, accuracy: 10, timestamp: 2.2 * MIN })).toBe("still");
++    expect(detector.status(5 * MIN + 1).stillForMs).toBeGreaterThanOrEqual(5 * MIN);
++    detector.update({ ...offset(200), accuracy: 10, timestamp: 4 * MIN });
++    expect(detector.update({ ...offset(240), accuracy: 10, timestamp: 4.2 * MIN })).toBe("moved");
++    expect(detector.status(5 * MIN).stationary).toBe(false);
++  });
++
++  it("ignores inaccurate fixes and requires a fresh fix before declaring stationary", () => {
++    const detector = createStationaryDetector();
++    expect(detector.update({ ...base, accuracy: 900, timestamp: 0 })).toBe("ignored");
++    detector.update({ ...base, accuracy: 15, timestamp: 0 });
++    const status = detector.status(6 * MIN);
++    expect(status.stationary).toBe(false);
++    expect(status.needsFreshFix).toBe(true);
++    detector.update({ ...base, accuracy: 15, timestamp: 6 * MIN });
++    expect(detector.status(6 * MIN).stationary).toBe(true);
++  });
++
++  it("restarts the 5-minute timer on reset (user confirmed safe)", () => {
++    const detector = createStationaryDetector();
++    detector.update({ ...base, accuracy: 10, timestamp: 0 });
++    detector.reset(5 * MIN, { ...base, accuracy: 10, timestamp: 5 * MIN });
++    expect(detector.status(6 * MIN).stationary).toBe(false);
++    detector.update({ ...base, accuracy: 10, timestamp: 10 * MIN });
++    expect(detector.status(10 * MIN).stationary).toBe(true);
++  });
++});
++
++describe("escalation and messages", () => {
++  it("spreads three alerts across the response window and then makes SOS due", () => {
++    expect(escalationStep(0, 180000)).toEqual({ alert: 1, sosDue: false });
++    expect(escalationStep(60000, 180000)).toEqual({ alert: 2, sosDue: false });
++    expect(escalationStep(120000, 180000)).toEqual({ alert: 3, sosDue: false });
++    expect(escalationStep(180000, 180000)).toEqual({ alert: 3, sosDue: true });
++  });
++
++  it("uses the exact SOS wording", () => {
++    expect(sosMessage("https://x/#/live/abc")).toBe("SOS EMERGENCY! I am in danger and need immediate help. My current location is: https://x/#/live/abc. Please help me immediately!");
++    expect(offlineSosMessage({ ...base, accuracy: 5, timestamp: 0 })).toContain("Last known location recorded at");
++  });
++});
+-- 
+2.43.0
+
