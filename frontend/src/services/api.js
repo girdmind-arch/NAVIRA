@@ -13,12 +13,23 @@ export async function api(path, options = {}) {
   if (options.auth !== false && getToken() && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${getToken()}`);
   const fetchOptions = { ...options };
   delete fetchOptions.auth;
+  delete fetchOptions.retry;
+  let retries = Number(options.retry) || 0;
 
   let response;
-  try {
-    response = await fetch(API_BASE + path, { credentials: "same-origin", ...fetchOptions, headers });
-  } catch {
-    throw new Error("NAVIRA could not reach the backend. Start the API and try again.");
+  for (;;) {
+    try {
+      response = await fetch(API_BASE + path, { credentials: "same-origin", ...fetchOptions, headers });
+    } catch {
+      throw new Error("NAVIRA could not reach the backend. Start the API and try again.");
+    }
+    // The hosting proxy occasionally answers 502/504 while a slow lookup is in flight; retry those once.
+    if (retries > 0 && (response.status === 502 || response.status === 504)) {
+      retries -= 1;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      continue;
+    }
+    break;
   }
 
   if (!response.ok) {
@@ -186,7 +197,7 @@ export const newsApi = {
   },
   coverage: () => api("/api/v1/news/coverage"),
   discover: (localities) => request("/api/v1/news/discover", "POST", { localities }),
-  routeLocalityEvidence: (geometry) => request("/api/v1/routes/locality-news", "POST", { geometry }),
+  routeLocalityEvidence: (geometry) => request("/api/v1/routes/locality-news", "POST", { geometry }, { retry: 1 }),
 };
 
 export function getApiBase() { return API_BASE || window.location.origin; }
