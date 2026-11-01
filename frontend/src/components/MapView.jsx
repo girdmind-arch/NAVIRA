@@ -82,6 +82,7 @@ function MapplsCanvas({ mapCenter, zoom, marker, startPoint, endPoint, startLabe
     if (status !== "ready" || !mappls || !map) return undefined;
     const layers = [];
     const add = (layer) => { if (layer) layers.push(layer); return layer; };
+    // mappls.fitBounds (cType 0) takes [latitude, longitude] pairs — not GeoJSON order.
     const bounds = [];
     const pin = (point, kind, label, popupHtml) => add(new mappls.Marker({
       map, position: { lat: point[0], lng: point[1] },
@@ -102,7 +103,7 @@ function MapplsCanvas({ mapCenter, zoom, marker, startPoint, endPoint, startLabe
           popupHtml: `<div class="navira-popup">Route ${index + 1}${active ? " · selected" : ""}</div>`,
         }));
         line?.addListener?.("click", () => handlersRef.current.onRouteSelect?.(index));
-        path.forEach((p) => bounds.push([p.lng, p.lat]));
+        path.forEach((p) => bounds.push([p.lat, p.lng]));
       }
       if (travelledPath.length > 1) {
         const path = travelledPath.filter(validPoint).map(([lat, lng]) => ({ lat, lng }));
@@ -125,17 +126,17 @@ function MapplsCanvas({ mapCenter, zoom, marker, startPoint, endPoint, startLabe
         if (!Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) continue;
         const detail = [place.kind, place.address, place.road_distance_m != null ? `${(place.road_distance_m / 1000).toFixed(1)} km by road` : ""].filter(Boolean).map(escapeHtml).join("<br/>");
         pin([place.latitude, place.longitude], place.kind === "hospital" ? "hospital" : "police", null, `<div class="navira-popup"><strong>${escapeHtml(place.name || "Name not listed")}</strong><br/>${detail}</div>`);
-        bounds.push([place.longitude, place.latitude]);
+        bounds.push([place.latitude, place.longitude]);
       }
       if (marker && Number.isFinite(marker.latitude) && Number.isFinite(marker.longitude)) {
         pin([marker.latitude, marker.longitude], "current", marker.label || "Selected location");
-        bounds.push([marker.longitude, marker.latitude]);
+        bounds.push([marker.latitude, marker.longitude]);
       }
       const start = validPoint(startPoint) ? startPoint : lines[0]?.path[0] && [lines[0].path[0].lat, lines[0].path[0].lng];
       const lastPath = lines[0]?.path;
       const end = validPoint(endPoint) ? endPoint : lastPath?.length && [lastPath[lastPath.length - 1].lat, lastPath[lastPath.length - 1].lng];
-      if (start) { pin(start, "start", startLabel || "Route start"); bounds.push([start[1], start[0]]); }
-      if (end && (validPoint(endPoint) || lines.length)) { pin(end, "end", endLabel || "Route destination"); bounds.push([end[1], end[0]]); }
+      if (start) { pin(start, "start", startLabel || "Route start"); bounds.push([start[0], start[1]]); }
+      if (end && (validPoint(endPoint) || lines.length)) { pin(end, "end", endLabel || "Route destination"); bounds.push([end[0], end[1]]); }
 
       if (bounds.length > 1) {
         new mappls.fitBounds({ map, cType: 0, bounds, options: { padding: 48, duration: 600, maxZoom: 15 } });
