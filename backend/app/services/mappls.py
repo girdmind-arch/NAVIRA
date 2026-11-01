@@ -49,6 +49,19 @@ def rest_key() -> str:
     return os.getenv("MAPPLS_REST_KEY", "").strip() or static_key()
 
 
+def referer() -> str:
+    """Domain sent as Referer on server-side calls.
+
+    Mappls keys are locked to whitelisted domains/IPs. Browser calls send the
+    site's domain automatically; server calls must send it too, otherwise Mappls
+    answers 401 "IP/Domain validation failed". Override with MAPPLS_REFERER.
+    """
+    value = os.getenv("MAPPLS_REFERER", "").strip() or os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if not value:
+        return ""
+    return value if value.startswith(("http://", "https://")) else f"https://{value.rstrip('/')}/"
+
+
 def not_configured_message(feature: str) -> str:
     return (f"{feature} uses MapmyIndia (Mappls), which is not configured yet. "
             "Add MAPPLS_STATIC_KEY in the server settings (Railway → Variables).")
@@ -56,7 +69,7 @@ def not_configured_message(feature: str) -> str:
 
 def _describe_http(code: int) -> str:
     return {
-        401: "Mappls rejected the API key (HTTP 401). Check MAPPLS_STATIC_KEY and that this API is enabled for the key in the Mappls console.",
+        401: "Mappls rejected the request (HTTP 401). Check MAPPLS_STATIC_KEY, that this API is enabled for the key, and that MAPPLS_REFERER (or the Railway domain) is whitelisted for the key in the Mappls console.",
         403: "Mappls refused the request (HTTP 403): the daily quota may be used up, or the key is not allowed for this server/domain.",
         412: "Mappls reported a missing parameter (HTTP 412).",
         204: "Mappls had a temporary database error (HTTP 204).",
@@ -65,7 +78,10 @@ def _describe_http(code: int) -> str:
 
 
 def _get_json(url: str, timeout: float = 10) -> Any:
-    request = Request(url, headers={"Accept": "application/json", "User-Agent": "NAVIRA/0.2"})
+    headers = {"Accept": "application/json", "User-Agent": "NAVIRA/0.2"}
+    if referer():
+        headers["Referer"] = referer()
+    request = Request(url, headers=headers)
     try:
         with urlopen(request, timeout=timeout) as response:
             if response.status == 204:
@@ -101,6 +117,32 @@ class MapplsClient:
             try:
                 lat, lng = float(payload[lat_key]), float(payload[lng_key])
             except (KeyError, TypeError, ValueError):
+                continue
+            if math.isfinite(lat) and math.isfinite(lng) and -90 <= lat <= 90 and -180 <= lng <= 180 and (lat, lng) != (0.0, 0.0):
+                return lat, lng
+        return self.pin_coordinates(eloc)
+
+    def pin_coordinates(self, eloc: str) -> tuple[float, float] | None:
+        """Coordinates for a Mappls pin via a zero-length route (pin → same pin).
+
+        Mappls autosuggest / place-details no longer return latitude/longitude for
+        standard keys, but routing accepts pins and returns the snapped point.
+        """
+        pin = quote(eloc, safe="")
+        url = ROUTE_URL.format(resource="route_adv", profile="walking", points=f"{pin};{pin}") + "?" + urlencode(
+            {"geometries": "geojson", "overview": "simplified", "steps": "false", "access_token": self.key})
+        payload = self.fetch(url)
+        if not isinstance(payload, dict):
+            return None
+        candidates = [wp.get("location") for wp in payload.get("waypoints") or [] if isinstance(wp, dict)]
+        for route in payload.get("routes") or []:
+            coords = (route.get("geometry") or {}).get("coordinates") if isinstance(route, dict) else None
+            if isinstance(coords, list) and coords:
+                candidates.append(coords[0])
+        for point in candidates:
+            try:
+                lng, lat = float(point[0]), float(point[1])
+            except (TypeError, ValueError, IndexError):
                 continue
             if math.isfinite(lat) and math.isfinite(lng) and -90 <= lat <= 90 and -180 <= lng <= 180 and (lat, lng) != (0.0, 0.0):
                 return lat, lng
